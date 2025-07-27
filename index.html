@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BugOps - Fix the Bug!</title>
+  <link rel="stylesheet" href="style/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 <b>BugOps: Fix the Bug!</b></h1>
+    
+    <p>📝 <span id="task">Task will appear here.</span></p>
+    
+    <textarea id="code" rows="10" cols="100" placeholder="Type your fix here..."></textarea>
+    
+    <br>
+    <button onclick="submitFix()">✅ Submit Fix</button>
+    <button onclick="getHint()">💡 Get Hint (-5 XP)</button>
+    
+    <p>XP: <span id="xp">100</span></p>
+  </div>
+
+  <!-- JS Scripts -->
+  <script src="style/levels/levels.js"></script>
+  <script src="script/script.js"></script>
+</body>
+</html>
