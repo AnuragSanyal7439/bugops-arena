@@ -8,16 +8,19 @@
 <body>
   <div class="container">
     <h1>🚀 <b>BugOps: Fix the Bug!</b></h1>
+
+    <p>📝 <b>Task:</b> <span id="task">Task will appear here.</span></p>
     
-    <p>📝 <span id="task">Task will appear here.</span></p>
-    
-    <textarea id="code" rows="10" cols="100" placeholder="Type your fix here..."></textarea>
-    
-    <br>
-    <button onclick="submitFix()">✅ Submit Fix</button>
+    <h2 id="level-title">Level 1</h2>
+
+    <textarea id="code-box" rows="10" cols="100" placeholder="Fix the code here..."></textarea><br/>
+
+    <button onclick="checkFix()">✅ Submit Fix</button>
     <button onclick="getHint()">💡 Get Hint (-5 XP)</button>
-    
-    <p>XP: <span id="xp">100</span></p>
+    <button onclick="nextLevel()">➡️ Next Level</button>
+
+    <p id="feedback"></p>
+    <p><b>XP:</b> <span id="xp">0</span></p>
   </div>
 
   <!-- JS Scripts -->
