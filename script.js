@@ -1,28 +1,48 @@
-let currentLevel = level1;
-let xp = 100;
+let currentLevel = 0;
+let xp = 0;
 
-window.onload = () => {
-  document.getElementById("task").innerText = currentLevel.description;
-  document.getElementById("codeEditor").value = currentLevel.buggyCSS;
-};
+function loadLevel() {
+  const level = levels[currentLevel];
+  document.getElementById("level-title").innerText = level.title;
+  document.getElementById("code-box").value = level.buggyCode;
+  document.getElementById("feedback").innerText = "";
+}
 
-function submitCode() {
-  const userCode = document.getElementById("codeEditor").value.trim();
-  if (userCode === currentLevel.expectedCSS.trim()) {
-    document.getElementById("result").innerText = "✅ Bug Fixed!";
+function checkFix() {
+  const userCode = document.getElementById("code-box").value.trim();
+  const correctCode = levels[currentLevel].correctCode.trim();
+
+  if (userCode === correctCode) {
+    document.getElementById("feedback").innerText = "✅ Bug Fixed!";
+    xp += 10;
+    document.getElementById("xp").innerText = `XP: ${xp}`;
   } else {
-    document.getElementById("result").innerText = "❌ Still buggy. Try again.";
-    xp -= 10;
+    document.getElementById("feedback").innerText = "❌ Still Buggy.";
   }
-  updateXP();
+}
+
+function nextLevel() {
+  if (currentLevel < levels.length - 1) {
+    currentLevel++;
+    loadLevel();
+  } else {
+    document.getElementById("feedback").innerText = "🎉 All levels completed!";
+    document.getElementById("code-box").value = "";
+    document.getElementById("level-title").innerText = "All Done!";
+  }
 }
 
 function getHint() {
-  document.getElementById("result").innerText = "💡 Hint: " + currentLevel.hint;
-  xp -= 5;
-  updateXP();
+  if (xp >= 5) {
+    xp -= 5;
+    document.getElementById("xp").innerText = xp;
+    const hint = levels[currentLevel].hint;
+    document.getElementById("feedback").innerText = "💡 Hint: " + hint;
+  } else {
+    document.getElementById("feedback").innerText = "❌ Not enough XP for a hint!";
+  }
 }
 
-function updateXP() {
-  document.getElementById("xp").innerText = `XP: ${xp}`;
-}
+
+
+window.onload = loadLevel;
