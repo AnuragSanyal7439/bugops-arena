@@ -1,33 +1,74 @@
 body {
-  font-family: sans-serif;
-  background: #121212;
-  color: white;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #f8fafc;
+  margin: 0;
+  padding: 0;
   text-align: center;
-  padding: 20px;
+}
+
+.container {
+  padding: 40px;
+}
+
+h1 {
+  font-size: 2.5rem;
+  color: #38bdf8;
+}
+
+#task {
+  color: #facc15;
+  font-weight: bold;
 }
 
 textarea {
-  background: #1e1e1e;
-  color: #00ff88;
-  font-family: monospace;
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  width: 90%;
   font-size: 16px;
-  width: 80%;
 }
 
 button {
-  padding: 10px 20px;
   margin: 10px;
+  padding: 12px 20px;
   border: none;
-  font-size: 16px;
-  cursor: pointer;
   border-radius: 8px;
+  cursor: pointer;
+  background: #38bdf8;
+  color: #0f172a;
+  font-weight: bold;
 }
 
 button:hover {
-  background-color: #333;
+  background: #0ea5e9;
 }
 
-#result {
-  font-size: 18px;
+#player-title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  text-align: center;
   margin-top: 10px;
+  color: #ffdd00;
+  text-shadow: 0 0 10px #ff8800, 0 0 20px #ff2200;
+  transition: all 0.3s ease-in-out;
+}
+#progress-container {
+  width: 80%;
+  height: 25px;
+  background: #222;
+  border: 2px solid #ff8800;
+  border-radius: 15px;
+  margin: 20px auto;
+  overflow: hidden;
+  box-shadow: 0 0 10px #ff8800;
+}
+
+#progress-bar {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #ffdd00, #ff8800, #ff2200);
+  border-radius: 15px;
+  transition: width 0.4s ease-in-out;
 }
