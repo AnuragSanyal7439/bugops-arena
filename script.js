@@ -1,20 +1,8 @@
 let currentLevel = 0;
 let xp = 0;
-const maxXP = 100; // Goal to reach (you can adjust)
+const maxXP = 100; // XP needed for full bar
 
-function updateXP() {
-  const xpBar = document.getElementById("xp-bar");
-  const percent = Math.min((xp / maxXP) * 100, 100);
-  xpBar.style.width = percent + "%";
-  xpBar.innerText = `${xp} XP`;
-
-  // Trigger level-up at milestones
-  if ([25, 50, 75, 100].includes(xp)) {
-    showLevelUp();
-  }
-}
-
-// Rank system based on XP
+// Rank system
 const ranks = [
   { xp: 0, title: "👶 Newbie Coder" },
   { xp: 20, title: "🛠️ Bug Fixer" },
@@ -23,6 +11,30 @@ const ranks = [
   { xp: 200, title: "🏆 Legendary Hacker" }
 ];
 
+// Update XP bar
+function updateXP() {
+  const xpBar = document.getElementById("xp-bar");
+  const percent = Math.min((xp / maxXP) * 100, 100);
+  xpBar.style.width = percent + "%";
+  xpBar.innerText = `${xp} XP`;
+
+  if (percent >= 100) {
+    xpBar.classList.add("full");  // add glow class
+  } else {
+    xpBar.classList.remove("full"); // remove glow when not full
+  }
+
+  // Trigger level-up milestones
+  if ([25, 50, 75, 100].includes(xp)) {
+    showLevelUp();
+  }
+
+
+
+  updateRank(); // keep rank updated
+}
+
+// Update rank (title)
 function updateRank() {
   let currentRank = ranks[0].title;
   for (let i = 0; i < ranks.length; i++) {
@@ -33,31 +45,17 @@ function updateRank() {
   document.getElementById("player-title").innerText = currentRank;
 }
 
-
-
+// Load current level
 function loadLevel() {
   const level = levels[currentLevel];
   document.getElementById("level-title").innerText = level.title;
+  document.getElementById("task").innerText = level.task || "Fix the bug!";
   document.getElementById("code-box").value = level.buggyCode;
   document.getElementById("feedback").innerText = "";
   updateXP();
 }
 
-function updateProgress() {
-  const progress = (xp % 100); // XP resets after each level
-  document.getElementById("progress-bar").style.width = progress + "%";
-
-  if (progress === 0 && xp > 0) {
-    currentLevel++;
-    if (currentLevel < levels.length) {
-      document.getElementById("feedback").innerText = "🎉 Level Up!";
-      loadLevel();
-    } else {
-      document.getElementById("feedback").innerText = "🏆 All levels completed!";
-    }
-  }
-}
-
+// Check user’s fix
 function checkFix() {
   const userCode = document.getElementById("code-box").value.trim();
   const correctCode = levels[currentLevel].correctCode.trim();
@@ -66,22 +64,13 @@ function checkFix() {
     document.getElementById("feedback").innerText = "✅ Bug Fixed!";
     xp += 10;
     document.getElementById("xp").innerText = `XP: ${xp}`;
-    updateProgress();
-  } else {
-    document.getElementById("feedback").innerText = "❌ Still Buggy.";
-  }
-}
-
-
-  if (userCode === correctCode) {
-    document.getElementById("feedback").innerText = "✅ Bug Fixed!";
-    xp += 10;
     updateXP();
   } else {
     document.getElementById("feedback").innerText = "❌ Still Buggy.";
   }
 }
 
+// Next level
 function nextLevel() {
   if (currentLevel < levels.length - 1) {
     currentLevel++;
@@ -93,6 +82,7 @@ function nextLevel() {
   }
 }
 
+// Get hint
 function getHint() {
   if (xp >= 5) {
     xp -= 5;
@@ -102,25 +92,30 @@ function getHint() {
   } else {
     document.getElementById("feedback").innerText = "❌ Not enough XP for a hint!";
   }
-  xp -= 5;
-document.getElementById("xp").innerText = `XP: ${xp}`;
-updateRank(); // ⬅️ NEW LINE
-
 }
 
-function showLevelUp() {
+// Show level-up popup
+function showLevelUp(newRank) {
   const popup = document.getElementById("level-up-popup");
+
+  // Random emojis for extra hype
+  const emojis = ["🚀", "⚡", "🔥", "✨", "👑", "🎉", "💻", "🏆", "🦾"];
+  const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+  // Dynamic message
+  popup.innerHTML = `${randomEmoji} LEVEL UP! ${randomEmoji}<br>🎯 New Rank: <b>${newRank}</b>`;
+
   popup.style.display = "block";
 
-  // Animate with fade-out after 2s
+  // Hide after 3s
   setTimeout(() => {
     popup.style.display = "none";
-  }, 2000);
+  }, 3000);
 
-  // 🎉 Extra flair: emoji rain
+  // 🎉 Emoji Rain
   for (let i = 0; i < 20; i++) {
     let emoji = document.createElement("div");
-    emoji.innerText = "✨";
+    emoji.innerText = emojis[Math.floor(Math.random() * emojis.length)];
     emoji.style.position = "fixed";
     emoji.style.left = Math.random() * window.innerWidth + "px";
     emoji.style.top = "-50px";
@@ -131,23 +126,8 @@ function showLevelUp() {
   }
 }
 
-function updateTitle() {
-  let title = "👶 Newbie Coder";
 
-  if (xp >= 25 && xp < 50) {
-    title = "🐞 Bug Slayer";
-  } else if (xp >= 50 && xp < 75) {
-    title = "⚡ Debugging Ninja";
-  } else if (xp >= 75 && xp < 100) {
-    title = "🔥 Code Wizard";
-  } else if (xp >= 100) {
-    title = "👑 Legendary Hacker";
-  }
-
-  document.getElementById("player-title").innerText = title;
-}
-
-
+// On page load
 window.onload = () => {
   loadLevel();
   updateRank();
