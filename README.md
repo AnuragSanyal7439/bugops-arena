@@ -81,21 +81,9 @@ For production, route AI requests through a small backend or serverless function
 2. Keep the output directory as the project root.
 3. Deploy.
 
-### Netlify
 
-1. Create a new site from this folder.
-2. Leave build command blank.
-3. Set publish directory to `.`.
-4. Deploy.
 
-## Screenshots / Demo
 
-Add final screenshots or a demo GIF here:
-
-- Landing page screenshot
-- Arena gameplay screenshot
-- Dashboard screenshot
-- Leaderboard screenshot
 
 ## Future Improvements
 
