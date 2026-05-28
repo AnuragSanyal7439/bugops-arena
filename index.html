@@ -1,69 +1,313 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>BugOps - Fix the Bug!</title>
-  <link rel="stylesheet" href="style/style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="description"
+    content="BugOps Arena is an AI-powered browser debugging game with a productivity dashboard and live leaderboard."
+  />
+  <title>BugOps Arena | AI-Powered Real-Time Debugging Game</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>🚀 <b>BugOps: Fix the Bug!</b></h1>
+  <canvas id="arena-particles" aria-hidden="true"></canvas>
 
-    <p>📝 <b>Task:</b> <span id="task">Task will appear here.</span></p>
-    
-    <h2 id="level-title">Level 1</h2>
-    <h2 id="player-title">👶 Newbie Coder</h2>
+  <header class="site-header">
+    <a class="brand" href="#home" aria-label="BugOps Arena home">
+      <span class="brand-mark">BO</span>
+      <span>BugOps Arena</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <nav class="nav-links" id="site-nav" aria-label="Primary navigation">
+      <a href="#home">Home</a>
+      <a href="#play">Play</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#leaderboard">Leaderboard</a>
+      <a href="#ai-helper">AI Helper</a>
+      <a href="#about">About</a>
+    </nav>
+  </header>
 
-    <!-- XP Counter -->
-    <p><b>XP:</b> <span id="xp">0</span></p>
-
-    <!-- XP Progress Bar -->
-    <div id="xp-container" style="width: 100%; background: #ddd; border-radius: 10px; margin: 10px 0;">
-      <div id="xp-bar" style="width: 0%; height: 20px; background: limegreen; border-radius: 10px; text-align: center; color: white; font-size: 12px;">
-        0 XP
+  <main>
+    <section class="hero section-shell" id="home">
+      <div class="hero-copy">
+        <p class="eyebrow">AI-Powered Real-Time Debugging Game</p>
+        <h1 class="glitch" data-text="BugOps Arena">BugOps Arena</h1>
+        <p class="tagline">Fix bugs. Beat the clock. Learn faster with AI.</p>
+        <p class="hero-description">
+          BugOps Arena is a next-generation web experience that combines a browser-based debugging game,
+          productivity dashboard, real-time leaderboard, creative frontend design, and AI-powered coding hints.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#play">Enter Arena</a>
+          <a class="btn btn-ghost" href="#leaderboard">View Rankings</a>
+        </div>
       </div>
-    </div>
 
-    <!-- Code Box -->
-    <textarea id="code-box" rows="10" cols="100" placeholder="Fix the code here..."></textarea><br/>
+      <div class="hero-visual" aria-label="BugOps Arena game preview">
+        <div class="terminal-frame">
+          <div class="terminal-topbar">
+            <span></span>
+            <span></span>
+            <span></span>
+            <strong>arena://debug-run</strong>
+          </div>
+          <pre class="animated-code"><code><span class="code-dim">function</span> add(a, b) {
+  <span class="code-warn">return a - b;</span>
+}
 
-    <!-- Buttons -->
-    <button onclick="checkFix()">✅ Submit Fix</button>
-    <button onclick="getHint()">💡 Get Hint (-5 XP)</button>
-    <button onclick="nextLevel()">➡️ Next Level</button>
+<span class="code-ok">patch:</span> return a + b;
+<span class="code-pulse">status:</span> bug fixed | +120 XP</code></pre>
+          <div class="scan-line"></div>
+        </div>
+      </div>
+    </section>
 
-    <!-- Feedback -->
-    <p id="feedback"></p>
+    <section class="section-shell feature-zone" id="about">
+      <div class="section-heading">
+        <p class="eyebrow">Hackathon build</p>
+        <h2>Built For Websites That Feel Alive</h2>
+        <p>
+          BugOps Arena blends an interactive website, productivity application, creative frontend experiment,
+          browser-based game, real-time leaderboard, and AI-powered web utility into one polished experience.
+        </p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature-card">
+          <span class="feature-index">01</span>
+          <h3>Interactive Arena</h3>
+          <p>Timed debugging rounds, lives, streaks, XP, badges, and animated feedback keep each fix tense.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-index">02</span>
+          <h3>AI Debug Coach</h3>
+          <p>Gemini-ready hints guide players without immediately giving away the corrected line.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-index">03</span>
+          <h3>Progress Dashboard</h3>
+          <p>Local analytics track accuracy, weak topics, total XP, streaks, time spent, and next focus areas.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-index">04</span>
+          <h3>Live Leaderboard</h3>
+          <p>Scores sync through localStorage events, with a clean adapter shape for Firebase or Supabase later.</p>
+        </article>
+      </div>
+    </section>
 
-    <!-- Level Up Popup -->
-     <div id="level-up-popup" style="display:none;"></div>
+    <section class="section-shell preview-zone" id="preview">
+      <div class="section-heading">
+        <p class="eyebrow">Game preview</p>
+        <h2>Debugging, Scoring, Learning</h2>
+      </div>
+      <div class="preview-grid">
+        <article class="preview-panel">
+          <div class="panel-title">
+            <span class="status-light"></span>
+            Arena Feed
+          </div>
+          <div class="mini-code-stream" id="mini-code-stream"></div>
+        </article>
+        <article class="preview-panel leaderboard-preview">
+          <div class="panel-title">
+            <span class="status-light status-light-hot"></span>
+            Leaderboard Preview
+          </div>
+          <ol id="leaderboard-preview-list"></ol>
+        </article>
+      </div>
+    </section>
 
-    <div id="level-up-popup" style="
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 3rem;
-      font-weight: bold;
-      color: gold;
-      text-shadow: 2px 2px 10px black;
-      display: none;
-      z-index: 9999;
-    ">
-      🚀 LEVEL UP! 🚀
-    </div>
-  </div>
+    <section class="section-shell arena-zone" id="play">
+      <div class="section-heading section-heading-row">
+        <div>
+          <p class="eyebrow">Play</p>
+          <h2>Debugging Arena</h2>
+        </div>
+        <div class="arena-controls">
+          <label for="difficulty-select">Difficulty</label>
+          <select id="difficulty-select">
+            <option value="All">All</option>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+          <button class="btn btn-primary" id="start-game" type="button">Start Run</button>
+        </div>
+      </div>
 
-  <!-- JS Scripts -->
-  <script src="style/levels/levels.js"></script>
-  <script src="script/script.js"></script>
+      <div class="game-shell">
+        <aside class="hud-panel">
+          <div class="hud-stat">
+            <span>Timer</span>
+            <strong id="timer">00:00</strong>
+          </div>
+          <div class="hud-stat">
+            <span>Score</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="hud-stat">
+            <span>XP</span>
+            <strong id="session-xp">0</strong>
+          </div>
+          <div class="hud-stat">
+            <span>Lives</span>
+            <strong id="lives">3</strong>
+          </div>
+          <div class="progress-track" aria-label="Challenge progress">
+            <span id="challenge-count">0 / 15</span>
+            <div class="progress-bar">
+              <span id="challenge-progress"></span>
+            </div>
+          </div>
+          <div class="badge-rack" id="badge-rack" aria-live="polite"></div>
+        </aside>
 
-  <!-- Animation for falling stars -->
-  <style>
-    @keyframes fall {
-      from { transform: translateY(0); opacity: 1; }
-      to { transform: translateY(100vh); opacity: 0; }
-    }
-  </style>
+        <article class="challenge-panel">
+          <div class="challenge-meta">
+            <span id="challenge-language">JavaScript</span>
+            <span id="challenge-difficulty">Easy</span>
+            <span id="challenge-topic">Functions</span>
+          </div>
+          <h3 id="challenge-title">Press Start Run</h3>
+          <pre class="code-display" id="buggy-code-display"><code>Choose a difficulty and enter the arena.</code></pre>
+          <label class="editor-label" for="answer-input">Your fix</label>
+          <textarea id="answer-input" spellcheck="false" placeholder="Fix the code here..."></textarea>
+          <div class="button-row">
+            <button class="btn btn-secondary" id="hint-button" type="button">Hint</button>
+            <button class="btn btn-primary" id="submit-answer" type="button">Submit Answer</button>
+            <button class="btn btn-ghost" id="explain-button" type="button">Explain Bug</button>
+            <button class="btn btn-ghost" id="next-challenge" type="button">Next</button>
+          </div>
+          <div class="feedback" id="feedback" aria-live="polite"></div>
+        </article>
+
+        <aside class="assistant-panel">
+          <div class="panel-title">
+            <span class="status-light"></span>
+            AI Hint Console
+          </div>
+          <div class="ai-output" id="ai-output">
+            Fallback hints are ready. Add a Gemini key in AI Helper to unlock generated coaching.
+          </div>
+          <div class="session-summary">
+            <div>
+              <span>Correct</span>
+              <strong id="correct-count">0</strong>
+            </div>
+            <div>
+              <span>Accuracy</span>
+              <strong id="session-accuracy">0%</strong>
+            </div>
+            <div>
+              <span>Streak</span>
+              <strong id="session-streak">0</strong>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="result-panel" id="result-panel" hidden>
+        <div>
+          <p class="eyebrow">Run complete</p>
+          <h3 id="result-title">Arena Cleared</h3>
+          <p id="result-copy"></p>
+        </div>
+        <div class="result-stats" id="result-stats"></div>
+        <form class="score-form" id="score-form">
+          <label for="player-name">Name</label>
+          <input id="player-name" name="playerName" maxlength="18" placeholder="Your name" required />
+          <button class="btn btn-primary" type="submit">Submit Score</button>
+          <button class="btn btn-ghost" id="restart-game" type="button">Restart Game</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="section-shell dashboard-zone" id="dashboard">
+      <div class="section-heading section-heading-row">
+        <div>
+          <p class="eyebrow">Productivity</p>
+          <h2>Debugging Dashboard</h2>
+        </div>
+        <button class="btn btn-ghost" id="reset-progress" type="button">Reset Progress</button>
+      </div>
+      <div class="stats-grid" id="dashboard-stats"></div>
+      <div class="analytics-grid">
+        <article class="analytics-panel">
+          <h3>Topic Performance</h3>
+          <div id="topic-bars"></div>
+        </article>
+        <article class="analytics-panel">
+          <h3>Recommendations</h3>
+          <div id="recommendation-panel"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-shell leaderboard-zone" id="leaderboard">
+      <div class="section-heading">
+        <p class="eyebrow">Real-time MVP</p>
+        <h2>Leaderboard</h2>
+        <p>Local live rankings update instantly in this browser and across open tabs.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Username</th>
+              <th>Score</th>
+              <th>XP</th>
+              <th>Accuracy</th>
+              <th>Time</th>
+              <th>Difficulty</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section-shell ai-helper-zone" id="ai-helper">
+      <div class="section-heading">
+        <p class="eyebrow">AI utility</p>
+        <h2>AI Helper</h2>
+      </div>
+      <div class="ai-helper-grid">
+        <form class="api-card" id="api-key-form">
+          <label for="api-key">Gemini API key</label>
+          <div class="api-row">
+            <input id="api-key" type="password" placeholder="VITE_GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY" />
+            <button class="btn btn-primary" type="submit">Save Key</button>
+          </div>
+          <button class="btn btn-ghost" id="clear-api-key" type="button">Clear Key</button>
+          <p id="api-status"></p>
+        </form>
+        <article class="api-card">
+          <h3>Integration Ready</h3>
+          <p>
+            The AI layer checks browser config, public-style environment keys, and localStorage. Without a key,
+            the game automatically falls back to curated hints and explanations from the challenge dataset.
+          </p>
+          <button class="btn btn-secondary" id="test-ai-hint" type="button">Test AI Hint</button>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast-zone" id="toast-zone" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script>
+    window.BUGOPS_ENV = window.BUGOPS_ENV || {};
+  </script>
+  <script src="levels.js"></script>
+  <script src="script.js" defer></script>
 </body>
 </html>
