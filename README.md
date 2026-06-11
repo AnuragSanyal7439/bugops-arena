@@ -20,7 +20,7 @@ The result is a polished hackathon experience with animated UI, a playable debug
 ## Features
 
 - Futuristic landing page with glitch heading, animated code preview, smooth scrolling, feature cards, and leaderboard preview
-- Browser-based debugging game with 40 challenges across JavaScript, Python, C, and Java
+- Browser-based debugging game with 50 challenges across JavaScript, Python, C, and Java
 - Timer countdown, score, XP, lives, difficulty selection, streak tracking, and final result screen
 - AI hint utility with Gemini API support and curated fallback hints
 - Explain Bug flow that reveals clearer explanations after submission
@@ -100,6 +100,17 @@ Add final screenshots or a demo GIF here:
 - Leaderboard screenshot
 
 See `docs/SCREENSHOT_GUIDE.md` for a capture checklist and `docs/DEMO_SCRIPT.md` for a short judging walkthrough.
+
+## Project Docs
+
+- `docs/AI_SETUP.md`
+- `docs/DEPLOYMENT.md`
+- `docs/CHALLENGE_AUTHORING.md`
+- `docs/LEADERBOARD_INTEGRATION.md`
+- `docs/TESTING_CHECKLIST.md`
+- `docs/JUDGING_NOTES.md`
+- `CHANGELOG.md`
+- `SECURITY.md`
 
 ## Future Improvements
 
