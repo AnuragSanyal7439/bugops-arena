@@ -186,6 +186,7 @@ function bindEvents() {
   dom.apiKeyForm.addEventListener("submit", saveApiKey);
   dom.clearApiKey.addEventListener("click", clearApiKey);
   dom.testAiHint.addEventListener("click", testAiHint);
+  document.addEventListener("keydown", handleGlobalShortcuts);
 
   window.addEventListener("storage", (event) => {
     if (event.key === STORAGE_KEYS.leaderboard) {
@@ -199,6 +200,25 @@ function bindEvents() {
   });
 
   window.addEventListener("bugops:leaderboard-update", renderLeaderboard);
+}
+
+function handleGlobalShortcuts(event) {
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    submitAnswer();
+    return;
+  }
+
+  if (event.altKey && event.key.toLowerCase() === "h") {
+    event.preventDefault();
+    requestHint();
+    return;
+  }
+
+  if (event.altKey && event.key.toLowerCase() === "n" && !dom.nextChallenge.disabled) {
+    event.preventDefault();
+    moveToNextChallenge();
+  }
 }
 
 function startGame() {
