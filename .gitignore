@@ -1,0 +1,15 @@
+# Local environment files
+.env
+.env.local
+config.local.js
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.vercel/
+.netlify/
+
+# System files
+.DS_Store
+Thumbs.db
