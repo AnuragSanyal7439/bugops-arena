@@ -553,6 +553,135 @@ except:
     correctFix: "except ValueError:",
     hint: "Catch the specific error caused by invalid integer parsing.",
     explanation: "A bare except hides unrelated failures. ValueError targets the expected conversion problem."
+  },
+  {
+    id: 41,
+    title: "JavaScript Reduce Seed",
+    language: "JavaScript",
+    difficulty: "Easy",
+    topic: "Arrays",
+    buggyCode: `const total = [].reduce((sum, value) => sum + value);
+console.log(total);`,
+    correctFix: "const total = [].reduce((sum, value) => sum + value, 0);",
+    hint: "An empty array needs an initial value for reduce.",
+    explanation: "reduce has no first value to use when the array is empty. Passing 0 gives it a safe starting point."
+  },
+  {
+    id: 42,
+    title: "Python Indentation Drift",
+    language: "Python",
+    difficulty: "Easy",
+    topic: "Syntax",
+    buggyCode: `def greet(name):
+print("Hello", name)`,
+    correctFix: `    print("Hello", name)`,
+    hint: "The statement inside the function needs indentation.",
+    explanation: "Python uses indentation to define blocks. The print line must be indented inside greet."
+  },
+  {
+    id: 43,
+    title: "C Missing Return Value",
+    language: "C",
+    difficulty: "Easy",
+    topic: "Functions",
+    buggyCode: `int doubleScore(int score) {
+  score * 2;
+}`,
+    correctFix: "return score * 2;",
+    hint: "The function calculates a value but never sends it back.",
+    explanation: "A non-void C function should return the calculated result."
+  },
+  {
+    id: 44,
+    title: "Java Boolean Assignment",
+    language: "Java",
+    difficulty: "Easy",
+    topic: "Conditionals",
+    buggyCode: `boolean ready = false;
+
+if (ready = true) {
+  System.out.println("Launch");
+}`,
+    correctFix: "if (ready == true) {",
+    hint: "The condition should compare the boolean value.",
+    explanation: "Using = assigns true to ready. The condition needs comparison, or simply if (ready)."
+  },
+  {
+    id: 45,
+    title: "JavaScript DOM Null Guard",
+    language: "JavaScript",
+    difficulty: "Medium",
+    topic: "DOM",
+    buggyCode: `const panel = document.querySelector(".score-panel");
+panel.textContent = "Ready";`,
+    correctFix: `if (panel) panel.textContent = "Ready";`,
+    hint: "The selector might not find an element.",
+    explanation: "querySelector returns null when no element matches. Guarding avoids reading textContent on null."
+  },
+  {
+    id: 46,
+    title: "Python Set Method Mixup",
+    language: "Python",
+    difficulty: "Medium",
+    topic: "Sets",
+    buggyCode: `tags = {"bug", "fix"}
+tags.append("arena")`,
+    correctFix: `tags.add("arena")`,
+    hint: "Sets do not use the list method for adding one item.",
+    explanation: "append is for lists. Sets use add to insert a single value."
+  },
+  {
+    id: 47,
+    title: "C Free Wrong Pointer",
+    language: "C",
+    difficulty: "Medium",
+    topic: "Memory",
+    buggyCode: `int *scores = malloc(3 * sizeof(int));
+scores++;
+free(scores);`,
+    correctFix: "free(scoresStart);",
+    hint: "free should receive the original pointer returned by malloc.",
+    explanation: "After incrementing scores, it no longer points to the allocation start. Store the original pointer before moving it."
+  },
+  {
+    id: 48,
+    title: "Java Generic Type Mismatch",
+    language: "Java",
+    difficulty: "Medium",
+    topic: "Generics",
+    buggyCode: `List<Integer> scores = new ArrayList<>();
+scores.add("100");`,
+    correctFix: "scores.add(100);",
+    hint: "The list expects integers, not strings.",
+    explanation: "List<Integer> only accepts Integer values. Removing the quotes makes 100 an integer literal."
+  },
+  {
+    id: 49,
+    title: "JavaScript Await Outside Async",
+    language: "JavaScript",
+    difficulty: "Hard",
+    topic: "Async",
+    buggyCode: `function getProfile() {
+  const response = await fetch("/profile");
+  return response.json();
+}`,
+    correctFix: "async function getProfile() {",
+    hint: "A function must opt into await.",
+    explanation: "await can be used inside async functions. Marking getProfile async makes the code valid."
+  },
+  {
+    id: 50,
+    title: "Python Shallow Copy Nest",
+    language: "Python",
+    difficulty: "Hard",
+    topic: "Lists",
+    buggyCode: `board = [[0], [1]]
+clone = board.copy()
+clone[0].append(9)
+print(board)`,
+    correctFix: "clone = [row.copy() for row in board]",
+    hint: "The outer list is copied, but the nested lists are still shared.",
+    explanation: "A shallow copy keeps references to nested lists. Copying each row prevents nested mutation leaks."
   }
 ];
 
