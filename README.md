@@ -20,7 +20,7 @@ The result is a polished hackathon experience with animated UI, a playable debug
 ## Features
 
 - Futuristic landing page with glitch heading, animated code preview, smooth scrolling, feature cards, and leaderboard preview
-- Browser-based debugging game with 15 challenges across JavaScript, Python, C, and Java
+- Browser-based debugging game with 30 challenges across JavaScript, Python, C, and Java
 - Timer countdown, score, XP, lives, difficulty selection, streak tracking, and final result screen
 - AI hint utility with Gemini API support and curated fallback hints
 - Explain Bug flow that reveals clearer explanations after submission
@@ -81,9 +81,21 @@ For production, route AI requests through a small backend or serverless function
 2. Keep the output directory as the project root.
 3. Deploy.
 
+### Netlify
 
+1. Create a new site from this folder.
+2. Leave build command blank.
+3. Set publish directory to `.`.
+4. Deploy.
 
+## Screenshots / Demo
 
+Add final screenshots or a demo GIF here:
+
+- Landing page screenshot
+- Arena gameplay screenshot
+- Dashboard screenshot
+- Leaderboard screenshot
 
 ## Future Improvements
 
