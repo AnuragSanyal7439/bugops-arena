@@ -423,6 +423,136 @@ printf("%d", *scorePtr);`,
     correctFix: "int *scorePtr = &score;",
     hint: "A pointer should store an address.",
     explanation: "scorePtr needs the address of score. The ampersand operator produces that address."
+  },
+  {
+    id: 31,
+    title: "JavaScript Sort String Trap",
+    language: "JavaScript",
+    difficulty: "Medium",
+    topic: "Arrays",
+    buggyCode: `const scores = [1, 30, 4, 21];
+scores.sort();
+console.log(scores);`,
+    correctFix: "scores.sort((a, b) => a - b);",
+    hint: "The default sort compares values as strings.",
+    explanation: "JavaScript sort converts values to strings by default. A numeric comparator sorts the numbers correctly."
+  },
+  {
+    id: 32,
+    title: "Python Dictionary Key Miss",
+    language: "Python",
+    difficulty: "Easy",
+    topic: "Dictionaries",
+    buggyCode: `profile = {"name": "Ada"}
+print(profile["role"])`,
+    correctFix: `print(profile.get("role", "guest"))`,
+    hint: "Use a safe lookup when the key might not exist.",
+    explanation: "Accessing a missing dictionary key raises KeyError. get can provide a fallback value."
+  },
+  {
+    id: 33,
+    title: "C Header Missing",
+    language: "C",
+    difficulty: "Easy",
+    topic: "Syntax",
+    buggyCode: `int main() {
+  printf("BugOps");
+  return 0;
+}`,
+    correctFix: "#include <stdio.h>",
+    hint: "The compiler needs the standard I/O declaration.",
+    explanation: "printf is declared in stdio.h, so the file should include that header."
+  },
+  {
+    id: 34,
+    title: "Java List Import Gap",
+    language: "Java",
+    difficulty: "Easy",
+    topic: "Imports",
+    buggyCode: `List<String> bugs = new ArrayList<>();
+bugs.add("timer");`,
+    correctFix: "import java.util.*;",
+    hint: "List and ArrayList live in the same standard utility package.",
+    explanation: "Java needs imports for collection types unless their fully qualified names are used."
+  },
+  {
+    id: 35,
+    title: "Event Listener Fires Early",
+    language: "JavaScript",
+    difficulty: "Medium",
+    topic: "Events",
+    buggyCode: `button.addEventListener("click", saveScore());`,
+    correctFix: `button.addEventListener("click", saveScore);`,
+    hint: "Pass the function reference instead of calling it immediately.",
+    explanation: "saveScore() runs during setup. Passing saveScore lets the browser call it when the click happens."
+  },
+  {
+    id: 36,
+    title: "Python File Handle Leak",
+    language: "Python",
+    difficulty: "Medium",
+    topic: "Files",
+    buggyCode: `file = open("scores.txt")
+data = file.read()
+print(data)`,
+    correctFix: `with open("scores.txt") as file:`,
+    hint: "Use the context-manager pattern for files.",
+    explanation: "with open closes the file automatically after the block, even if reading fails."
+  },
+  {
+    id: 37,
+    title: "C scanf Address Bug",
+    language: "C",
+    difficulty: "Medium",
+    topic: "Input",
+    buggyCode: `int score;
+scanf("%d", score);`,
+    correctFix: `scanf("%d", &score);`,
+    hint: "scanf needs the address where it should store the value.",
+    explanation: "The ampersand passes the address of score so scanf can write into that variable."
+  },
+  {
+    id: 38,
+    title: "Java Constructor Return Type",
+    language: "Java",
+    difficulty: "Hard",
+    topic: "Classes",
+    buggyCode: `class Player {
+  void Player(String name) {
+    System.out.println(name);
+  }
+}`,
+    correctFix: "Player(String name) {",
+    hint: "Constructors do not declare a return type.",
+    explanation: "Adding void turns the constructor into a normal method. A constructor uses only the class name."
+  },
+  {
+    id: 39,
+    title: "JavaScript Lost This",
+    language: "JavaScript",
+    difficulty: "Hard",
+    topic: "Objects",
+    buggyCode: `const player = {
+  score: 10,
+  show: () => this.score
+};`,
+    correctFix: "show() { return this.score; }",
+    hint: "Arrow functions do not bind their own this.",
+    explanation: "Object methods that need this should use method syntax or a regular function."
+  },
+  {
+    id: 40,
+    title: "Python Except Too Broad",
+    language: "Python",
+    difficulty: "Hard",
+    topic: "Errors",
+    buggyCode: `try:
+    total = int(value)
+except:
+    total = 0`,
+    correctFix: "except ValueError:",
+    hint: "Catch the specific error caused by invalid integer parsing.",
+    explanation: "A bare except hides unrelated failures. ValueError targets the expected conversion problem."
   }
 ];
 
