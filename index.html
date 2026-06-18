@@ -45,6 +45,12 @@
       <a href="#ai-helper">AI Helper</a>
       <a href="#about">About</a>
     </nav>
+    <div class="auth-panel" id="auth-panel">
+      <span id="auth-status">Checking session...</span>
+      <a class="btn btn-ghost auth-provider" id="login-google" href="/auth/google" hidden>Google</a>
+      <a class="btn btn-ghost auth-provider" id="login-github" href="/auth/github" hidden>GitHub</a>
+      <button class="btn btn-ghost" id="logout-button" type="button" hidden>Log out</button>
+    </div>
   </header>
 
   <main>
@@ -110,7 +116,7 @@
         <article class="feature-card">
           <span class="feature-index">04</span>
           <h3>Live Leaderboard</h3>
-          <p>Scores sync through localStorage events, with a clean adapter shape for Firebase or Supabase later.</p>
+          <p>Scores sync through secure sessions and PostgreSQL when players sign in.</p>
         </article>
       </div>
     </section>
@@ -272,6 +278,7 @@
       </div>
       <div class="table-wrap">
         <table>
+          <caption>Top completed BugOps Arena runs</caption>
           <thead>
             <tr>
               <th>Rank</th>
@@ -295,18 +302,18 @@
       </div>
       <div class="ai-helper-grid">
         <form class="api-card" id="api-key-form">
-          <label for="api-key">Gemini API key</label>
+          <label for="api-key">AI backend</label>
           <div class="api-row">
-            <input id="api-key" type="password" placeholder="VITE_GEMINI_API_KEY or NEXT_PUBLIC_GEMINI_API_KEY" />
-            <button class="btn btn-primary" type="submit">Save Key</button>
+            <input id="api-key" type="text" placeholder="Managed by secure server environment" disabled />
+            <button class="btn btn-primary" type="submit">Check AI</button>
           </div>
-          <button class="btn btn-ghost" id="clear-api-key" type="button">Clear Key</button>
+          <button class="btn btn-ghost" id="clear-api-key" type="button">Clear Local Drafts</button>
           <p id="api-status"></p>
         </form>
         <article class="api-card">
           <h3>Integration Ready</h3>
           <p>
-            The AI layer checks browser config, public-style environment keys, and localStorage. Without a key,
+            The AI layer now calls the secure backend when you are signed in. Without a configured server key,
             the game automatically falls back to curated hints and explanations from the challenge dataset.
           </p>
           <button class="btn btn-secondary" id="test-ai-hint" type="button">Test AI Hint</button>

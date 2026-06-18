@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuthProvider {
+  GOOGLE
+  GITHUB
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum GameSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  LOCKED
+  ABANDONED
+}
+
+enum AiRequestKind {
+  HINT
+  EXPLANATION
+}
+
+model User {
+  id          String        @id @default(uuid()) @db.Uuid
+  email       String?       @unique
+  name        String?
+  avatarUrl   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  lastLoginAt DateTime?
+  accounts    Account[]
+  profile     Profile?
+  sessions    GameSession[]
+  submissions Submission[]
+  achievements Achievement[]
+  leaderboard Leaderboard[]
+  aiUsage     AiUsageEvent[]
+}
+
+model Account {
+  id                String       @id @default(uuid()) @db.Uuid
+  userId            String       @db.Uuid
+  provider          AuthProvider
+  providerAccountId String
+  email             String?
+  accessTokenHash   String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Profile {
+  id                      String   @id @default(uuid()) @db.Uuid
+  userId                  String   @unique @db.Uuid
+  displayName             String?
+  totalAttempts           Int      @default(0)
+  totalCorrect            Int      @default(0)
+  bugsFixed               Int      @default(0)
+  totalXP                 Int      @default(0)
+  timeSpentSeconds        Int      @default(0)
+  currentStreak           Int      @default(0)
+  bestStreak              Int      @default(0)
+  sessionsPlayed          Int      @default(0)
+  topicStats              Json     @default("{}")
+  difficultyStats         Json     @default("{}")
+  languageStats           Json     @default("{}")
+  migratedLocalProgressAt DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Challenge {
+  id          Int                @id
+  title       String
+  language    String
+  difficulty  Difficulty
+  topic       String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  versions    ChallengeVersion[]
+  submissions Submission[]
+}
+
+model ChallengeVersion {
+  id          String       @id @default(uuid()) @db.Uuid
+  challengeId Int
+  version     Int
+  buggyCode   String
+  correctFix  String
+  hint        String
+  explanation String
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  challenge   Challenge    @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@unique([challengeId, version])
+  @@index([challengeId, isActive])
+}
+
+model GameSession {
+  id                        String            @id @default(uuid()) @db.Uuid
+  userId                    String            @db.Uuid
+  selectedDifficulty        String
+  status                    GameSessionStatus @default(IN_PROGRESS)
+  score                     Int               @default(0)
+  xp                        Int               @default(0)
+  correct                   Int               @default(0)
+  attempts                  Int               @default(0)
+  hintsUsed                 Int               @default(0)
+  lives                     Int               @default(3)
+  streak                    Int               @default(0)
+  currentChallengeIndex     Int               @default(0)
+  currentChallengeStartedAt DateTime          @default(now())
+  hintCounts                Json              @default("{}")
+  timeSpentSeconds          Int               @default(0)
+  challengeIds              Int[]             @default([])
+  startedAt                 DateTime          @default(now())
+  finishedAt                DateTime?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  user                      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submissions               Submission[]
+  leaderboard               Leaderboard?
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model Submission {
+  id                 String            @id @default(uuid()) @db.Uuid
+  userId             String            @db.Uuid
+  gameSessionId      String?           @db.Uuid
+  challengeId        Int
+  challengeVersionId String?           @db.Uuid
+  submittedAnswer    String
+  isCorrect          Boolean
+  scoreAwarded       Int               @default(0)
+  xpAwarded          Int               @default(0)
+  timeLeftSeconds    Int               @default(0)
+  hintsUsed          Int               @default(0)
+  createdAt          DateTime          @default(now())
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameSession        GameSession?      @relation(fields: [gameSessionId], references: [id], onDelete: SetNull)
+  challenge          Challenge         @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+  challengeVersion   ChallengeVersion? @relation(fields: [challengeVersionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([gameSessionId, challengeId])
+  @@index([challengeId])
+}
+
+model Achievement {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  code       String
+  label      String
+  metadata   Json?
+  unlockedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
+  @@index([userId, unlockedAt])
+}
+
+model Leaderboard {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @db.Uuid
+  gameSessionId String?      @unique @db.Uuid
+  username      String
+  score         Int
+  xp            Int
+  accuracy      Int
+  timeTaken     Int
+  difficulty    String
+  createdAt     DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameSession   GameSession? @relation(fields: [gameSessionId], references: [id], onDelete: SetNull)
+
+  @@index([score, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AiUsageEvent {
+  id           String        @id @default(uuid()) @db.Uuid
+  userId       String        @db.Uuid
+  gameSessionId String?      @db.Uuid
+  kind         AiRequestKind
+  provider     String
+  usedFallback Boolean       @default(false)
+  success      Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([gameSessionId, createdAt])
+}
+
+model Session {
+  sid       String   @id
+  data      Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+}

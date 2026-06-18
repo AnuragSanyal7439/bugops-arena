@@ -124,6 +124,22 @@ textarea:disabled {
   gap: 8px;
 }
 
+.auth-panel {
+  display: flex;
+  min-width: 190px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.auth-panel .btn {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+}
+
 .nav-links a {
   padding: 9px 12px;
   border: 1px solid transparent;
@@ -811,6 +827,12 @@ select {
   padding: 0 34px 0 12px;
 }
 
+input:focus-visible,
+select:focus-visible {
+  border-color: rgba(34, 211, 238, 0.72);
+  box-shadow: var(--shadow-cyan);
+}
+
 label {
   color: var(--muted);
   font-weight: 800;
@@ -903,6 +925,14 @@ table {
   width: 100%;
   min-width: 760px;
   border-collapse: collapse;
+}
+
+caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 th,
@@ -1112,6 +1142,7 @@ tr:last-child td {
   }
 
   .site-header {
+    flex-wrap: wrap;
     padding: 11px 16px;
   }
 
@@ -1139,6 +1170,12 @@ tr:last-child td {
 
   .nav-links a {
     width: 100%;
+  }
+
+  .auth-panel {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .section-shell {

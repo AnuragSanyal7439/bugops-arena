@@ -2,7 +2,7 @@
 
 ## One-Line Pitch
 
-BugOps Arena turns debugging practice into a fast, animated browser game with AI hints, XP, progress tracking, and live rankings.
+BugOps Arena turns debugging practice into a fast, animated browser game with secure login, AI hints, XP, progress tracking, and persistent rankings.
 
 ## Theme Fit
 
@@ -10,9 +10,9 @@ BugOps Arena makes the web feel alive through:
 
 - Animated landing and terminal UI
 - Real-time timer, score, streak, XP, lives, and feedback
-- Persistent productivity dashboard
-- Local real-time leaderboard
-- AI-ready hint and explanation console
+- Persistent productivity dashboard backed by PostgreSQL
+- Server-backed leaderboard
+- Secure AI hint and explanation console
 
 ## What To Show First
 
@@ -20,4 +20,4 @@ Start with the landing page, then immediately enter the Arena and solve the firs
 
 ## MVP Strength
 
-The app is complete without external services. AI and leaderboard features include graceful fallbacks and clear upgrade paths.
+Signed-in users get HTTP-only sessions, server-authoritative scoring, database-backed progress, and server-backed leaderboard storage.

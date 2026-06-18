@@ -2,13 +2,27 @@
 
 ## API Keys
 
-BugOps Arena can run with a Gemini key for local demos, but private API keys should not be committed to the repository.
+Do not commit Gemini or OAuth secrets.
 
-For production:
+Gemini keys must be stored only in the backend environment as `GEMINI_API_KEY`. The browser app does not read API keys from `config.js` or localStorage.
 
-- Store AI keys in server-side environment variables.
-- Call Gemini through a serverless function or backend route.
-- Rate-limit hint requests if public traffic is expected.
+## Sessions
+
+BugOps Arena uses HTTP-only session cookies backed by PostgreSQL. In production:
+
+- Set `NODE_ENV=production`.
+- Use HTTPS.
+- Set a strong `SESSION_SECRET`.
+- Configure OAuth callback URLs exactly for the deployed origin.
+
+## Database
+
+Run Prisma migrations before serving production traffic:
+
+```bash
+npm run db:deploy
+npm run db:seed
+```
 
 ## Reporting Issues
 

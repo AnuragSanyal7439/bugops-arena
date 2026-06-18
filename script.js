@@ -1,8 +1,10 @@
 const STORAGE_KEYS = {
-  progress: "bugopsArenaProgress",
-  leaderboard: "bugopsArenaLeaderboard",
-  apiKey: "bugopsArenaGeminiKey",
-  model: "bugopsArenaGeminiModel"
+  legacyProgress: "bugopsArenaProgress",
+  legacyLeaderboard: "bugopsArenaLeaderboard",
+  legacyApiKey: "bugopsArenaGeminiKey",
+  legacyModel: "bugopsArenaGeminiModel",
+  editorDrafts: "bugopsArenaEditorDrafts",
+  uiPreferences: "bugopsArenaUiPreferences"
 };
 
 const INITIAL_PROGRESS = {
@@ -44,14 +46,16 @@ const BADGES = [
 
 const leaderboardProvider = {
   async list() {
-    return readJson(STORAGE_KEYS.leaderboard, []).sort((a, b) => b.score - a.score).slice(0, 12);
+    const response = await apiRequest("/api/leaderboard");
+    return response.entries || [];
   },
   async submit(entry) {
-    const entries = readJson(STORAGE_KEYS.leaderboard, []);
-    const nextEntries = [entry, ...entries].sort((a, b) => b.score - a.score).slice(0, 25);
-    localStorage.setItem(STORAGE_KEYS.leaderboard, JSON.stringify(nextEntries));
+    const response = await apiRequest("/api/leaderboard", {
+      method: "POST",
+      body: entry
+    });
     window.dispatchEvent(new CustomEvent("bugops:leaderboard-update"));
-    return nextEntries;
+    return response.entry;
   }
 };
 
@@ -65,6 +69,13 @@ const state = {
   challenges: window.challenges || [],
   progress: { ...INITIAL_PROGRESS },
   game: createEmptyGame(),
+  auth: {
+    authenticated: false,
+    user: null,
+    providers: { google: false, github: false }
+  },
+  serverSessionId: null,
+  finishSyncPromise: null,
   timerId: null,
   miniStreamId: null,
   particlesStarted: false
@@ -94,12 +105,14 @@ function createEmptyGame() {
 
 const dom = {};
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   cacheDom();
-  state.progress = normalizeProgress(readJson(STORAGE_KEYS.progress, INITIAL_PROGRESS));
+  state.progress = normalizeProgress(INITIAL_PROGRESS);
   bindEvents();
+  loadUiPreferences();
   setupParticles();
   renderMiniCodeStream();
+  await bootstrapRemoteState();
   renderLeaderboard();
   renderDashboard();
   renderBadgeRack();
@@ -153,7 +166,12 @@ function cacheDom() {
     "api-status",
     "test-ai-hint",
     "mini-code-stream",
-    "toast-zone"
+    "toast-zone",
+    "auth-panel",
+    "auth-status",
+    "login-google",
+    "login-github",
+    "logout-button"
   ];
 
   ids.forEach((id) => {
@@ -186,20 +204,120 @@ function bindEvents() {
   dom.apiKeyForm.addEventListener("submit", saveApiKey);
   dom.clearApiKey.addEventListener("click", clearApiKey);
   dom.testAiHint.addEventListener("click", testAiHint);
+  dom.logoutButton.addEventListener("click", logout);
+  dom.answerInput.addEventListener("input", saveCurrentDraft);
+  dom.difficultySelect.addEventListener("change", saveUiPreferences);
   document.addEventListener("keydown", handleGlobalShortcuts);
 
   window.addEventListener("storage", (event) => {
-    if (event.key === STORAGE_KEYS.leaderboard) {
-      renderLeaderboard();
-    }
-    if (event.key === STORAGE_KEYS.progress) {
-      state.progress = normalizeProgress(readJson(STORAGE_KEYS.progress, INITIAL_PROGRESS));
-      renderDashboard();
-      renderBadgeRack();
+    if (event.key === STORAGE_KEYS.editorDrafts && state.game.currentChallenge) {
+      restoreCurrentDraft();
     }
   });
 
   window.addEventListener("bugops:leaderboard-update", renderLeaderboard);
+}
+
+async function bootstrapRemoteState() {
+  removeLegacySecrets();
+
+  try {
+    const providers = await apiRequest("/api/auth/providers");
+    state.auth.providers = providers || state.auth.providers;
+
+    const session = await apiRequest("/api/auth/me");
+    state.auth.authenticated = Boolean(session?.authenticated);
+    state.auth.user = session?.user || null;
+    renderAuthState();
+
+    if (state.auth.authenticated) {
+      await migrateLegacyProgress();
+      await loadProgress();
+    }
+  } catch (error) {
+    console.warn(error);
+    renderAuthState();
+    showToast("Server sync is unavailable. This run will stay on this device.", "info");
+  }
+}
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(path, {
+    method: options.method || "GET",
+    credentials: "same-origin",
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {})
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = payload?.error?.message || `Request failed with ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    error.code = payload?.error?.code;
+    throw error;
+  }
+
+  return payload.data ?? payload;
+}
+
+function renderAuthState() {
+  const displayName = state.auth.user?.name || state.auth.user?.email || "signed-in player";
+  dom.authStatus.textContent = state.auth.authenticated
+    ? `Signed in as ${displayName}`
+    : "Sign in to sync progress";
+  dom.loginGoogle.hidden = state.auth.authenticated || !state.auth.providers.google;
+  dom.loginGithub.hidden = state.auth.authenticated || !state.auth.providers.github;
+  dom.logoutButton.hidden = !state.auth.authenticated;
+}
+
+async function loadProgress() {
+  const response = await apiRequest("/api/progress");
+  state.progress = normalizeProgress(response.progress);
+}
+
+async function migrateLegacyProgress() {
+  const legacy = readJson(STORAGE_KEYS.legacyProgress, null);
+
+  if (!legacy || !legacy.totalAttempts) {
+    return;
+  }
+
+  const response = await apiRequest("/api/progress/migrate", {
+    method: "POST",
+    body: legacy
+  });
+
+  if (response.progress) {
+    state.progress = normalizeProgress(response.progress);
+  }
+
+  localStorage.removeItem(STORAGE_KEYS.legacyProgress);
+  localStorage.removeItem(STORAGE_KEYS.legacyLeaderboard);
+
+  if (response.migrated) {
+    showToast("Local progress migrated to your account.", "success");
+  }
+}
+
+async function logout() {
+  try {
+    await apiRequest("/api/auth/logout", { method: "POST" });
+  } catch (error) {
+    console.warn(error);
+  }
+
+  state.auth.authenticated = false;
+  state.auth.user = null;
+  state.serverSessionId = null;
+  state.progress = normalizeProgress(INITIAL_PROGRESS);
+  renderAuthState();
+  renderDashboard();
+  renderBadgeRack();
+  showToast("Signed out. Progress sync is paused.", "info");
 }
 
 function handleGlobalShortcuts(event) {
@@ -221,39 +339,79 @@ function handleGlobalShortcuts(event) {
   }
 }
 
-function startGame() {
+async function startGame() {
   clearInterval(state.timerId);
   const selectedDifficulty = dom.difficultySelect.value;
-  const sessionChallenges = getSessionChallenges(selectedDifficulty);
+  saveUiPreferences();
+
+  if (!state.auth.authenticated) {
+    showToast("Sign in to start a server-scored run.", "info");
+    scrollIntoView("#home");
+    return;
+  }
+
+  const serverSession = await createServerGameSession(selectedDifficulty);
+  if (!serverSession) {
+    return;
+  }
+
+  const sessionChallenges = getChallengesByIds(serverSession.challengeIds);
+  if (!sessionChallenges.length) {
+    showToast("Server-selected challenges are not available in this client build.", "info");
+    return;
+  }
 
   state.game = {
     ...createEmptyGame(),
     active: true,
     selectedDifficulty,
     sessionChallenges,
-    startedAt: Date.now()
+    challengeIndex: serverSession.currentChallengeIndex,
+    score: serverSession.score,
+    xp: serverSession.xp,
+    lives: serverSession.lives,
+    correct: serverSession.correct,
+    attempts: serverSession.attempts,
+    streak: serverSession.streak,
+    startedAt: new Date(serverSession.startedAt).getTime()
   };
+  state.serverSessionId = serverSession.id;
+  state.finishSyncPromise = null;
 
   dom.resultPanel.hidden = true;
   dom.feedback.className = "feedback";
   dom.aiOutput.textContent = "Arena online. Hints will stay partial until you submit.";
-  loadChallenge(0);
+  loadChallenge(state.game.challengeIndex);
   updateHud();
   scrollIntoView("#play");
 }
 
-function getSessionChallenges(difficulty) {
-  const filtered = difficulty === "All"
-    ? state.challenges
-    : state.challenges.filter((challenge) => challenge.difficulty === difficulty);
-  return [...filtered].sort((a, b) => a.id - b.id);
+async function createServerGameSession(selectedDifficulty) {
+  try {
+    const response = await apiRequest("/api/game-sessions", {
+      method: "POST",
+      body: {
+        selectedDifficulty
+      }
+    });
+    return response.session;
+  } catch (error) {
+    console.warn(error);
+    showToast("Could not create a server-scored run.", "info");
+    return null;
+  }
+}
+
+function getChallengesByIds(challengeIds) {
+  const byId = new Map(state.challenges.map((challenge) => [challenge.id, challenge]));
+  return challengeIds.map((id) => byId.get(id)).filter(Boolean);
 }
 
 function loadChallenge(index) {
   const challenge = state.game.sessionChallenges[index];
 
   if (!challenge) {
-    finishGame("Arena Cleared");
+    showToast("No server-selected challenge is available.", "info");
     return;
   }
 
@@ -268,7 +426,7 @@ function loadChallenge(index) {
   dom.challengeTopic.textContent = challenge.topic;
   dom.challengeTitle.textContent = challenge.title;
   dom.buggyCodeDisplay.textContent = challenge.buggyCode;
-  dom.answerInput.value = challenge.buggyCode;
+  dom.answerInput.value = getDraftForChallenge(challenge.id) || challenge.buggyCode;
   dom.answerInput.disabled = false;
   dom.feedback.textContent = "";
   dom.feedback.className = "feedback";
@@ -300,7 +458,7 @@ function startTimer() {
   }, 1000);
 }
 
-function submitAnswer() {
+async function submitAnswer() {
   const game = state.game;
   const challenge = game.currentChallenge;
 
@@ -308,74 +466,102 @@ function submitAnswer() {
     return;
   }
 
-  const isCorrect = isAnswerCorrect(dom.answerInput.value, challenge);
-  game.attempts += 1;
+  const answer = dom.answerInput.value;
   game.submittedCurrent = true;
+  dom.submitAnswer.disabled = true;
 
-  if (isCorrect) {
-    const points = DIFFICULTY_POINTS[challenge.difficulty];
-    const timeBonus = Math.max(0, game.timeLeft * 2);
-    const earnedScore = points.score + timeBonus - game.hintsUsed * 5;
-    const earnedXp = points.xp;
+  if (!state.serverSessionId) {
+    showToast("No server session is active.", "info");
+    dom.submitAnswer.disabled = false;
+    return;
+  }
 
-    game.score += Math.max(points.score, earnedScore);
-    game.xp += earnedXp;
-    game.correct += 1;
-    game.streak += 1;
-    game.answeredCurrent = true;
+  try {
+    const response = await apiRequest("/api/submissions", {
+      method: "POST",
+      body: {
+        gameSessionId: state.serverSessionId,
+        answer
+      }
+    });
 
-    recordProgressAttempt(challenge, true, earnedXp);
+    applyServerSession(response.session);
+    if (response.progress) {
+      state.progress = normalizeProgress(response.progress);
+    }
+
+    renderSubmissionOutcome(response, challenge);
+    persistProgress();
+    updateHud();
+    renderDashboard();
+    renderBadgeRack();
+  } catch (error) {
+    console.warn(error);
+    showToast(error.message || "Submission sync failed.", "info");
+    game.submittedCurrent = false;
+    dom.submitAnswer.disabled = false;
+  }
+}
+
+function renderSubmissionOutcome(response, challenge) {
+  const outcome = response.outcome || {};
+
+  if (response.session?.status && response.session.status !== "IN_PROGRESS") {
+    state.game.answeredCurrent = true;
+    dom.answerInput.disabled = true;
+    dom.hintButton.disabled = true;
+    dom.nextChallenge.disabled = true;
+    clearDraftForChallenge(challenge.id);
+    const title = response.session.status === "LOCKED" ? "System Lockout" : "Arena Cleared";
+    const copy = outcome.timedOut
+      ? `Time expired. ${challenge.explanation}`
+      : outcome.isCorrect
+        ? `Correct. ${challenge.explanation}`
+        : `Still buggy. ${challenge.explanation}`;
+    updateFeedback(outcome.isCorrect ? "success" : "error", copy);
+    dom.aiOutput.textContent = challenge.explanation;
+    finishGameFromServer(title, response.session);
+    return;
+  }
+
+  if (outcome.isCorrect) {
+    state.game.answeredCurrent = true;
     updateFeedback("success", `Correct. ${challenge.explanation}`);
     dom.aiOutput.textContent = challenge.explanation;
     dom.nextChallenge.disabled = false;
     dom.submitAnswer.disabled = true;
     dom.answerInput.disabled = true;
+    clearDraftForChallenge(challenge.id);
     triggerConfetti();
-  } else {
-    game.lives -= 1;
-    game.streak = 0;
-    recordProgressAttempt(challenge, false, 0);
-    updateFeedback("error", `Still buggy. ${challenge.explanation}`);
-    dom.aiOutput.textContent = challenge.explanation;
-    pulseElement(dom.answerInput);
-
-    if (game.lives <= 0) {
-      game.answeredCurrent = true;
-      finishGame("System Lockout");
-    }
+    return;
   }
 
-  persistProgress();
-  updateHud();
-  renderDashboard();
-  renderBadgeRack();
+  if (outcome.timedOut) {
+    state.game.answeredCurrent = true;
+    updateFeedback("error", `Time expired. ${challenge.explanation}`);
+    dom.aiOutput.textContent = challenge.explanation;
+    dom.nextChallenge.disabled = false;
+    dom.submitAnswer.disabled = true;
+    dom.answerInput.disabled = true;
+    clearDraftForChallenge(challenge.id);
+    return;
+  }
+
+  state.game.answeredCurrent = false;
+  state.game.submittedCurrent = false;
+  updateFeedback("error", `Still buggy. ${challenge.explanation}`);
+  dom.aiOutput.textContent = challenge.explanation;
+  dom.nextChallenge.disabled = true;
+  dom.submitAnswer.disabled = false;
+  dom.answerInput.disabled = false;
+  pulseElement(dom.answerInput);
 }
 
-function handleTimeout() {
-  const challenge = state.game.currentChallenge;
+async function handleTimeout() {
   clearInterval(state.timerId);
-
-  state.game.attempts += 1;
-  state.game.lives -= 1;
-  state.game.streak = 0;
-  state.game.answeredCurrent = true;
-  state.game.submittedCurrent = true;
-  recordProgressAttempt(challenge, false, 0);
-  persistProgress();
-
-  updateFeedback("error", `Time expired. ${challenge.explanation}`);
-  dom.aiOutput.textContent = challenge.explanation;
-  dom.nextChallenge.disabled = state.game.lives <= 0;
+  dom.feedback.textContent = "Time expired. Validating with server...";
   dom.submitAnswer.disabled = true;
-  dom.answerInput.disabled = true;
-
-  updateHud();
-  renderDashboard();
-  renderBadgeRack();
-
-  if (state.game.lives <= 0) {
-    finishGame("System Lockout");
-  }
+  await submitAnswer();
 }
 
 function moveToNextChallenge() {
@@ -383,37 +569,49 @@ function moveToNextChallenge() {
     return;
   }
 
-  if (state.game.challengeIndex >= state.game.sessionChallenges.length - 1) {
-    finishGame("Arena Cleared");
+  if (state.game.challengeIndex >= state.game.sessionChallenges.length) {
     return;
   }
 
-  loadChallenge(state.game.challengeIndex + 1);
+  loadChallenge(state.game.challengeIndex);
 }
 
-function finishGame(title) {
-  clearInterval(state.timerId);
-  const game = state.game;
-
-  if (!game.startedAt) {
+function applyServerSession(session) {
+  if (!session) {
     return;
   }
 
-  game.active = false;
-  game.elapsedSeconds = Math.max(1, Math.floor((Date.now() - game.startedAt) / 1000));
-  state.progress.sessionsPlayed += 1;
-  state.progress.timeSpentSeconds += game.elapsedSeconds;
-  persistProgress();
+  state.game.score = session.score;
+  state.game.xp = session.xp;
+  state.game.correct = session.correct;
+  state.game.attempts = session.attempts;
+  state.game.hintsUsed = session.hintsUsed;
+  state.game.lives = session.lives;
+  state.game.streak = session.streak;
+  state.game.challengeIndex = session.currentChallengeIndex;
+  state.game.elapsedSeconds = session.timeSpentSeconds || Math.max(1, Math.floor((Date.now() - state.game.startedAt) / 1000));
+  state.game.active = session.status === "IN_PROGRESS";
+}
 
-  const accuracy = getSessionAccuracy();
+function finishGameFromServer(title, session) {
+  clearInterval(state.timerId);
+
+  if (!session) {
+    return;
+  }
+
+  applyServerSession(session);
+  state.finishSyncPromise = Promise.resolve();
+
+  const accuracy = getAccuracy(session.correct, session.attempts);
   dom.resultPanel.hidden = false;
   dom.resultTitle.textContent = title;
-  dom.resultCopy.textContent = `${game.correct} bugs fixed with ${accuracy}% accuracy in ${formatTime(game.elapsedSeconds)}.`;
+  dom.resultCopy.textContent = `${session.correct} bugs fixed with ${accuracy}% accuracy in ${formatTime(session.timeSpentSeconds)}.`;
   dom.resultStats.innerHTML = [
-    statPill("Score", game.score),
-    statPill("XP", game.xp),
-    statPill("Lives", Math.max(0, game.lives)),
-    statPill("Difficulty", game.selectedDifficulty)
+    statPill("Score", session.score),
+    statPill("XP", session.xp),
+    statPill("Lives", Math.max(0, session.lives)),
+    statPill("Difficulty", session.selectedDifficulty)
   ].join("");
   dom.nextChallenge.disabled = true;
   dom.submitAnswer.disabled = true;
@@ -429,22 +627,11 @@ async function requestHint() {
     return;
   }
 
-  state.game.hintsUsed += state.game.active ? 1 : 0;
-  updateHud();
   dom.aiOutput.textContent = "Generating hint...";
-
-  const prompt = [
-    "You are the BugOps Arena hint coach.",
-    "Give one short debugging hint.",
-    "Do not reveal the exact corrected line or full answer.",
-    `Language: ${challenge.language}`,
-    `Topic: ${challenge.topic}`,
-    `Buggy code:\n${challenge.buggyCode}`
-  ].join("\n");
-
-  const hint = await getAiText(prompt, challenge.hint, challenge, false);
+  const hint = await getAiText("hint", challenge.hint, challenge, false);
   dom.aiOutput.textContent = hint;
   updateFeedback("info", `Hint: ${hint}`);
+  updateHud();
 }
 
 async function explainBug() {
@@ -453,54 +640,33 @@ async function explainBug() {
     return;
   }
 
+  if (state.game.answeredCurrent || !state.game.active) {
+    dom.aiOutput.textContent = challenge.explanation;
+    updateFeedback("info", challenge.explanation);
+    return;
+  }
+
   dom.aiOutput.textContent = "Preparing explanation...";
   const canRevealMore = state.game.submittedCurrent || !state.game.active;
-  const prompt = [
-    "You are the BugOps Arena debugging coach.",
-    canRevealMore
-      ? "Explain the bug clearly in beginner-friendly language. You may describe the corrected idea."
-      : "Explain the bug conceptually without revealing the full corrected answer.",
-    `Language: ${challenge.language}`,
-    `Topic: ${challenge.topic}`,
-    `Buggy code:\n${challenge.buggyCode}`
-  ].join("\n");
-
-  const explanation = await getAiText(prompt, challenge.explanation, challenge, canRevealMore);
+  const explanation = await getAiText("explanation", challenge.explanation, challenge, canRevealMore);
   dom.aiOutput.textContent = explanation;
   updateFeedback("info", explanation);
 }
 
-async function getAiText(prompt, fallback, challenge, revealAnswer) {
-  const apiKey = getConfiguredApiKey();
-
-  if (!apiKey) {
+async function getAiText(kind, fallback, challenge, revealAnswer) {
+  if (!state.auth.authenticated || !state.serverSessionId) {
     return fallback;
   }
 
   try {
-    const model = getConfiguredModel();
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.35,
-            maxOutputTokens: 140
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Gemini request failed: ${response.status}`);
+    const response = await apiRequest("/api/ai/hint", {
+      method: "POST",
+      body: { gameSessionId: state.serverSessionId, kind }
+    });
+    if (typeof response.hintsUsed === "number") {
+      state.game.hintsUsed = response.hintsUsed;
     }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text).join(" ").trim();
-    return cleanAiResponse(text || fallback, challenge, revealAnswer);
+    return cleanAiResponse(response.text || fallback, challenge, revealAnswer);
   } catch (error) {
     console.warn(error);
     updateApiStatus("AI request failed. Fallback hints are active.");
@@ -522,21 +688,13 @@ function cleanAiResponse(text, challenge, revealAnswer) {
 
 function saveApiKey(event) {
   event.preventDefault();
-  const key = dom.apiKey.value.trim();
-
-  if (!key) {
-    updateApiStatus("Paste a key before saving.");
-    return;
-  }
-
-  localStorage.setItem(STORAGE_KEYS.apiKey, key);
-  dom.apiKey.value = "";
-  updateApiStatus("Gemini key saved. AI hints enabled.");
+  updateApiStatus();
+  testAiHint();
 }
 
 function clearApiKey() {
-  localStorage.removeItem(STORAGE_KEYS.apiKey);
-  updateApiStatus("Gemini key cleared. Fallback hints active.");
+  localStorage.removeItem(STORAGE_KEYS.editorDrafts);
+  updateApiStatus("Local editor drafts cleared. Backend AI configuration is unchanged.");
 }
 
 async function testAiHint() {
@@ -551,7 +709,7 @@ async function testAiHint() {
   updateFeedback("info", `AI Helper: ${hint}`);
 }
 
-function submitScore(event) {
+async function submitScore(event) {
   event.preventDefault();
   const name = dom.playerName.value.trim();
 
@@ -559,26 +717,37 @@ function submitScore(event) {
     return;
   }
 
-  const entry = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-    username: name,
-    score: state.game.score,
-    xp: state.game.xp,
-    accuracy: getSessionAccuracy(),
-    timeTaken: state.game.elapsedSeconds,
-    difficulty: state.game.selectedDifficulty,
-    createdAt: new Date().toISOString()
-  };
+  if (!state.auth.authenticated || !state.serverSessionId) {
+    showToast("Sign in and finish a synced run before submitting a leaderboard score.", "info");
+    return;
+  }
 
-  leaderboardProvider.submit(entry).then(() => {
+  if (state.finishSyncPromise) {
+    await state.finishSyncPromise;
+  }
+
+  try {
+    await leaderboardProvider.submit({
+      gameSessionId: state.serverSessionId,
+      username: name
+    });
     dom.playerName.value = "";
     showToast("Score submitted to leaderboard.", "success");
+    await renderLeaderboard();
     scrollIntoView("#leaderboard");
-  });
+  } catch (error) {
+    console.warn(error);
+    showToast(error.message || "Leaderboard submission failed.", "info");
+  }
 }
 
 async function renderLeaderboard() {
-  const entries = await leaderboardProvider.list();
+  let entries = [];
+  try {
+    entries = await leaderboardProvider.list();
+  } catch (error) {
+    console.warn(error);
+  }
   const rows = entries.length ? entries : sampleLeaders;
 
   dom.leaderboardBody.innerHTML = rows
@@ -687,60 +856,29 @@ function renderBadgeRack() {
     : `<span class="badge-empty">No badges yet</span>`;
 }
 
-function recordProgressAttempt(challenge, isCorrect, earnedXp) {
-  const progress = state.progress;
-  progress.totalAttempts += 1;
-  progress.totalXP += earnedXp;
-
-  if (isCorrect) {
-    progress.totalCorrect += 1;
-    progress.bugsFixed += 1;
-    progress.currentStreak += 1;
-    progress.bestStreak = Math.max(progress.bestStreak, progress.currentStreak);
-  } else {
-    progress.currentStreak = 0;
-  }
-
-  bumpStats(progress.topicStats, challenge.topic, isCorrect);
-  bumpStats(progress.difficultyStats, challenge.difficulty, isCorrect);
-  bumpStats(progress.languageStats, challenge.language, isCorrect);
-  unlockBadges();
-}
-
-function bumpStats(bucket, key, isCorrect) {
-  if (!bucket[key]) {
-    bucket[key] = { attempts: 0, correct: 0 };
-  }
-
-  bucket[key].attempts += 1;
-  bucket[key].correct += isCorrect ? 1 : 0;
-}
-
-function unlockBadges() {
-  const earned = new Set(state.progress.badges || []);
-
-  BADGES.forEach((badge) => {
-    if (!earned.has(badge.id) && badge.test(state.progress)) {
-      earned.add(badge.id);
-      showToast(`Badge unlocked: ${badge.label}`, "success");
-    }
-  });
-
-  state.progress.badges = [...earned];
-}
-
 function persistProgress() {
-  localStorage.setItem(STORAGE_KEYS.progress, JSON.stringify(state.progress));
+  // Server-backed progress is updated through protected submission/session routes.
 }
 
-function resetProgress() {
+async function resetProgress() {
   const confirmed = window.confirm("Reset dashboard progress and badges?");
   if (!confirmed) {
     return;
   }
 
-  state.progress = normalizeProgress(INITIAL_PROGRESS);
-  persistProgress();
+  if (state.auth.authenticated) {
+    try {
+      const response = await apiRequest("/api/progress", { method: "DELETE" });
+      state.progress = normalizeProgress(response.progress);
+    } catch (error) {
+      console.warn(error);
+      showToast(error.message || "Progress reset failed.", "info");
+      return;
+    }
+  } else {
+    state.progress = normalizeProgress(INITIAL_PROGRESS);
+  }
+
   renderDashboard();
   renderBadgeRack();
   showToast("Progress reset.", "info");
@@ -786,21 +924,6 @@ function setArenaIdle() {
 function updateFeedback(type, message) {
   dom.feedback.className = `feedback is-${type}`;
   dom.feedback.textContent = message;
-}
-
-function isAnswerCorrect(answer, challenge) {
-  const submitted = normalizeCode(answer);
-  const correct = normalizeCode(challenge.correctFix);
-  const original = normalizeCode(challenge.buggyCode);
-  return submitted === correct || (submitted.includes(correct) && submitted !== original);
-}
-
-function normalizeCode(value) {
-  return String(value)
-    .replace(/\r/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
 }
 
 function getSessionAccuracy() {
@@ -955,26 +1078,9 @@ function updateApiStatus(message) {
     return;
   }
 
-  const hasKey = Boolean(getConfiguredApiKey());
-  dom.apiStatus.textContent = hasKey
-    ? "Gemini key detected. AI hints enabled."
-    : "No key detected. Curated fallback hints enabled.";
-}
-
-function getConfiguredApiKey() {
-  const env = window.BUGOPS_ENV || {};
-  return (
-    env.NEXT_PUBLIC_GEMINI_API_KEY ||
-    env.VITE_GEMINI_API_KEY ||
-    env.GEMINI_API_KEY ||
-    localStorage.getItem(STORAGE_KEYS.apiKey) ||
-    ""
-  );
-}
-
-function getConfiguredModel() {
-  const env = window.BUGOPS_ENV || {};
-  return env.GEMINI_MODEL || localStorage.getItem(STORAGE_KEYS.model) || "gemini-1.5-flash-latest";
+  dom.apiStatus.textContent = state.auth.authenticated
+    ? "Signed in. AI hints use the secure backend when configured."
+    : "Sign in to use backend AI hints. Curated fallback hints remain active.";
 }
 
 function readJson(key, fallback) {
@@ -1033,6 +1139,63 @@ function statPill(label, value) {
 
 function scrollIntoView(selector) {
   document.querySelector(selector)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function loadUiPreferences() {
+  const preferences = readJson(STORAGE_KEYS.uiPreferences, {});
+  const difficulty = preferences?.difficulty;
+
+  if (["All", "Easy", "Medium", "Hard"].includes(difficulty)) {
+    dom.difficultySelect.value = difficulty;
+  }
+}
+
+function saveUiPreferences() {
+  localStorage.setItem(
+    STORAGE_KEYS.uiPreferences,
+    JSON.stringify({
+      difficulty: dom.difficultySelect.value
+    })
+  );
+}
+
+function getDraftForChallenge(challengeId) {
+  const drafts = readJson(STORAGE_KEYS.editorDrafts, {});
+  return drafts?.[challengeId] || "";
+}
+
+function saveCurrentDraft() {
+  const challenge = state.game.currentChallenge;
+  if (!challenge || dom.answerInput.disabled) {
+    return;
+  }
+
+  const drafts = readJson(STORAGE_KEYS.editorDrafts, {});
+  drafts[challenge.id] = dom.answerInput.value;
+  localStorage.setItem(STORAGE_KEYS.editorDrafts, JSON.stringify(drafts));
+}
+
+function restoreCurrentDraft() {
+  const challenge = state.game.currentChallenge;
+  if (!challenge || dom.answerInput.disabled) {
+    return;
+  }
+
+  const draft = getDraftForChallenge(challenge.id);
+  if (draft) {
+    dom.answerInput.value = draft;
+  }
+}
+
+function clearDraftForChallenge(challengeId) {
+  const drafts = readJson(STORAGE_KEYS.editorDrafts, {});
+  delete drafts[challengeId];
+  localStorage.setItem(STORAGE_KEYS.editorDrafts, JSON.stringify(drafts));
+}
+
+function removeLegacySecrets() {
+  localStorage.removeItem(STORAGE_KEYS.legacyApiKey);
+  localStorage.removeItem(STORAGE_KEYS.legacyModel);
 }
 
 function toCamel(id) {
