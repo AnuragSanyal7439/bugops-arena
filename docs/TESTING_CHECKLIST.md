@@ -1,20 +1,45 @@
 # Testing Checklist
 
-Use this checklist before a demo or deployment.
+## Automated
+
+Run before deployment:
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm audit --audit-level=moderate
+```
+
+## Database
+
+- Run `npm run db:deploy`.
+- Run `npm run db:seed`.
+- Confirm challenges exist in PostgreSQL.
+
+## Auth
+
+- Visit `/api/auth/providers` and confirm configured providers are enabled.
+- Sign in with Google when configured.
+- Sign in with GitHub when configured.
+- Confirm `/api/auth/me` returns the signed-in user.
+- Log out and confirm protected routes return 401.
 
 ## Gameplay
 
-- Start a run from the Arena section.
-- Submit a correct answer and confirm score/XP increases.
-- Submit a wrong answer and confirm lives decrease.
-- Use Hint and Explain Bug.
-- Finish or fail a run and submit a leaderboard score.
+- Start a signed-in run.
+- Submit a correct answer and confirm progress updates.
+- Submit a wrong answer and confirm attempts/lives update.
+- Finish or fail a run.
+- Submit a leaderboard score.
+- Refresh and confirm dashboard progress persists.
+- Sign in from another browser profile/device and confirm progress loads.
 
-## Persistence
+## localStorage
 
-- Refresh the page and confirm dashboard stats remain.
-- Submit a score and confirm leaderboard entries remain.
-- Reset progress and confirm dashboard clears.
+- Confirm new app writes are limited to `bugopsArenaEditorDrafts` and `bugopsArenaUiPreferences`.
+- With old `bugopsArenaProgress` present, sign in and confirm migration removes the legacy progress key.
 
 ## Responsive QA
 
@@ -22,12 +47,4 @@ Use this checklist before a demo or deployment.
 - Tablet: 768 x 1024
 - Mobile: 390 x 844
 
-Confirm there is no horizontal overflow and that buttons remain readable.
-
-## JavaScript Checks
-
-```bash
-node --check script.js
-node --check levels.js
-node --check config.js
-```
+Confirm there is no horizontal overflow and buttons remain readable.

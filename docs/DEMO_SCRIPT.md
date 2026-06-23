@@ -14,13 +14,13 @@
    timer, lives, score, XP, streak, feedback animation, and badge unlocks.
 
 5. Click **Hint** or **Explain Bug**:
-   show that the app uses Gemini when configured and curated fallback hints otherwise.
+   show that the app uses the secure backend Gemini proxy when configured and curated fallback hints otherwise.
 
 6. Open the dashboard:
    highlight bugs fixed, accuracy, streak, XP, weak topics, and recommendations.
 
 7. Finish or fail a run, enter a name, and submit the score:
-   show the local real-time leaderboard updating immediately.
+   show the server-backed leaderboard updating after a signed-in run.
 
 8. Close with future roadmap:
-   Firebase/Supabase leaderboard, multiplayer rooms, authenticated profiles, Monaco editor, and backend-secured AI.
+   database-backed integration tests, multiplayer rooms, Monaco editor, and admin challenge authoring.

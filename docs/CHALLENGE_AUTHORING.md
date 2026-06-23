@@ -1,6 +1,6 @@
 # Challenge Authoring Guide
 
-Challenges live in `levels.js` as plain JavaScript objects.
+Challenges still live in `levels.js` as plain JavaScript objects. The database seed imports this file into the `Challenge` and `ChallengeVersion` tables.
 
 ## Required Shape
 
@@ -25,6 +25,16 @@ Challenges live in `levels.js` as plain JavaScript objects.
 - Avoid trick questions.
 - Make hints useful without giving away the answer immediately.
 - Use the explanation to teach the underlying debugging idea.
+
+## Database Seed
+
+After adding or editing challenges, run:
+
+```bash
+npm run db:seed
+```
+
+This updates version 1 challenge records in PostgreSQL from `levels.js`.
 
 ## Difficulty Guide
 

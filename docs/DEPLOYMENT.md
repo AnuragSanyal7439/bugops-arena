@@ -1,25 +1,50 @@
 # Deployment Guide
 
-BugOps Arena is a static app. It does not require a build step.
+BugOps Arena now requires a Node runtime and PostgreSQL. It is no longer a static-only deployment.
 
-## Vercel
+## Required Environment Variables
 
-1. Import the GitHub repository.
-2. Choose **Other** as the framework preset.
-3. Leave the build command empty.
-4. Use `.` as the output directory.
-5. Deploy.
+```bash
+NODE_ENV=production
+PORT=4173
+APP_ORIGIN=https://your-domain.example
+DATABASE_URL=postgresql://...
+SESSION_SECRET=at-least-32-random-characters
+```
 
-## Netlify
+Optional:
 
-1. Create a new site from GitHub.
-2. Leave the build command empty.
-3. Set the publish directory to `.`.
-4. Deploy.
+```bash
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-1.5-flash-latest
+```
 
-## Static Files Included
+## Release Steps
 
-- `vercel.json` for clean static hosting behavior
-- `netlify.toml` for Netlify publish settings
-- `_redirects` for SPA-style fallback routing
-- `manifest.webmanifest` for installable app metadata
+```bash
+npm ci
+npm run build
+npm run db:deploy
+npm run db:seed
+npm start
+```
+
+## OAuth Callback URLs
+
+Configure provider callbacks with your production origin:
+
+- `https://your-domain.example/auth/google/callback`
+- `https://your-domain.example/auth/github/callback`
+
+## Static Hosts
+
+The old static-only Vercel/Netlify setup is no longer sufficient for authenticated persistence. Use a deployment target that supports:
+
+- Long-running Node server or compatible serverless Express adapter
+- PostgreSQL connectivity
+- Secure environment variables
+- HTTPS

@@ -1,32 +1,33 @@
-# Leaderboard Integration Plan
+# Leaderboard Integration
 
-The MVP leaderboard uses localStorage so the game works immediately without backend setup.
+The leaderboard is now backed by PostgreSQL instead of localStorage.
 
-## Current Data Shape
+## Current Flow
 
-```js
+1. Signed-in user starts a run through `POST /api/game-sessions`.
+2. Submissions are recorded through `POST /api/submissions`.
+3. The run is finalized by the submission transaction when lives reach zero or the final challenge is cleared.
+4. The score is submitted through protected `POST /api/leaderboard`.
+5. Public rankings are read through `GET /api/leaderboard`.
+
+## Data Shape
+
+`Leaderboard` entries are derived from stored `GameSession` records:
+
+```ts
 {
-  username: "Player",
-  score: 1200,
-  xp: 420,
-  accuracy: 86,
-  timeTaken: 210,
-  difficulty: "Hard",
-  createdAt: "2026-06-11T00:00:00.000Z"
+  username: string;
+  score: number;
+  xp: number;
+  accuracy: number;
+  timeTaken: number;
+  difficulty: string;
+  createdAt: Date;
 }
 ```
 
-## Firebase/Supabase Upgrade
+## Integrity Notes
 
-Replace the `leaderboardProvider` methods in `script.js`:
-
-- `list()` should fetch the top scores ordered by score descending.
-- `submit(entry)` should insert the result and return the updated leaderboard.
-
-## Real-Time Behavior
-
-The current app dispatches a local event after score submission. A backend version can replace that with:
-
-- Firebase `onSnapshot`
-- Supabase realtime channels
-- WebSocket score broadcasts
+- The client no longer submits arbitrary score objects.
+- The server calculates leaderboard values from the stored session.
+- Challenge progression, timing, scoring, XP, lives, streaks, and completion are server-authoritative.
