@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch server/index.ts",
     "start": "node dist/server/index.js",
-    "build": "prisma generate && tsc -p tsconfig.json",
+    "build": "prisma generate && tsc -p tsconfig.json && node scripts/build-public.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
