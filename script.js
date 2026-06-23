@@ -41,12 +41,21 @@ const BADGES = [
     id: "hard-mode",
     label: "Hard Mode",
     test: (progress) => (progress.difficultyStats?.Hard?.correct || 0) >= 2
-  }
+  },
+  { id: "bug-surgeon", label: "Bug Surgeon", test: (progress) => progress.bugsFixed >= 25 },
+  { id: "accuracy-80", label: "Precision Debugger", test: (progress) => progress.totalAttempts >= 10 },
+  { id: "xp-1000", label: "Kilobyte Climber", test: (progress) => progress.totalXP >= 1000 },
+  { id: "language-specialist", label: "Language Specialist", test: () => false },
+  { id: "topic-master", label: "Topic Master", test: () => false },
+  { id: "daily-debugger", label: "Daily Debugger", test: () => false },
+  { id: "no-hint-clear", label: "Clean Room Clear", test: () => false },
+  { id: "boss-breaker", label: "Boss Breaker", test: () => false },
+  { id: "quest-streaker", label: "Quest Streaker", test: () => false }
 ];
 
 const leaderboardProvider = {
-  async list() {
-    const response = await apiRequest("/api/leaderboard");
+  async list(scope = state.leaderboardScope) {
+    const response = await apiRequest(`/api/leaderboard?scope=${encodeURIComponent(scope)}`);
     return response.entries || [];
   },
   async submit(entry) {
@@ -76,6 +85,26 @@ const state = {
   },
   serverSessionId: null,
   finishSyncPromise: null,
+  engagement: {
+    dailyBug: null,
+    weeklyQuests: [],
+    tracks: [],
+    profile: null,
+    achievements: [],
+    history: [],
+    mastery: null,
+    recommendations: []
+  },
+  leaderboardScope: "weekly",
+  workspace: {
+    monaco: null,
+    editor: null,
+    currentServerChallenge: null,
+    lastRun: null,
+    diffVisible: false,
+    hintLevel: 0,
+    hintTexts: []
+  },
   timerId: null,
   miniStreamId: null,
   particlesStarted: false
@@ -85,6 +114,9 @@ function createEmptyGame() {
   return {
     active: false,
     selectedDifficulty: "All",
+    mode: "standard",
+    trackId: null,
+    noHintMode: false,
     sessionChallenges: [],
     challengeIndex: 0,
     currentChallenge: null,
@@ -111,6 +143,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindEvents();
   loadUiPreferences();
   setupParticles();
+  await initializeEditor();
   renderMiniCodeStream();
   await bootstrapRemoteState();
   renderLeaderboard();
@@ -124,6 +157,8 @@ function cacheDom() {
   const ids = [
     "site-nav",
     "difficulty-select",
+    "mode-select",
+    "track-select",
     "start-game",
     "timer",
     "score",
@@ -137,7 +172,19 @@ function cacheDom() {
     "challenge-topic",
     "challenge-title",
     "buggy-code-display",
+    "editor-host",
     "answer-input",
+    "run-tests",
+    "reset-code",
+    "toggle-diff",
+    "visible-tests",
+    "hidden-tests",
+    "console-output",
+    "compiler-output",
+    "expected-actual-output",
+    "diff-panel",
+    "diff-output",
+    "hint-ladder",
     "hint-button",
     "submit-answer",
     "explain-button",
@@ -155,11 +202,20 @@ function cacheDom() {
     "player-name",
     "restart-game",
     "dashboard-stats",
+    "daily-bug-panel",
+    "weekly-quests-panel",
+    "tracks-panel",
     "topic-bars",
     "recommendation-panel",
+    "mastery-panel",
+    "history-panel",
+    "profile-panel",
     "reset-progress",
     "leaderboard-body",
     "leaderboard-preview-list",
+    "leaderboard-weekly",
+    "leaderboard-monthly",
+    "leaderboard-all-time",
     "api-key-form",
     "api-key",
     "clear-api-key",
@@ -194,6 +250,14 @@ function bindEvents() {
   });
 
   dom.startGame.addEventListener("click", startGame);
+  dom.modeSelect.addEventListener("change", () => {
+    saveUiPreferences();
+    updateModeControls();
+  });
+  dom.trackSelect.addEventListener("change", saveUiPreferences);
+  dom.runTests.addEventListener("click", runTests);
+  dom.resetCode.addEventListener("click", resetCode);
+  dom.toggleDiff.addEventListener("click", toggleDiff);
   dom.submitAnswer.addEventListener("click", submitAnswer);
   dom.hintButton.addEventListener("click", requestHint);
   dom.explainButton.addEventListener("click", explainBug);
@@ -205,8 +269,21 @@ function bindEvents() {
   dom.clearApiKey.addEventListener("click", clearApiKey);
   dom.testAiHint.addEventListener("click", testAiHint);
   dom.logoutButton.addEventListener("click", logout);
-  dom.answerInput.addEventListener("input", saveCurrentDraft);
+  dom.answerInput.addEventListener("input", () => {
+    if (!state.workspace.editor) {
+      saveCurrentDraft();
+      renderDiff();
+    }
+  });
   dom.difficultySelect.addEventListener("change", saveUiPreferences);
+  [dom.leaderboardWeekly, dom.leaderboardMonthly, dom.leaderboardAllTime].forEach((button) => {
+    button.addEventListener("click", () => {
+      state.leaderboardScope = button.dataset.scope || "weekly";
+      saveUiPreferences();
+      renderLeaderboard();
+      trackClientEvent("leaderboard_viewed", { scope: state.leaderboardScope });
+    });
+  });
   document.addEventListener("keydown", handleGlobalShortcuts);
 
   window.addEventListener("storage", (event) => {
@@ -216,6 +293,83 @@ function bindEvents() {
   });
 
   window.addEventListener("bugops:leaderboard-update", renderLeaderboard);
+}
+
+async function initializeEditor() {
+  if (!window.require || !dom.editorHost) {
+    return;
+  }
+
+  try {
+    window.require.config({ paths: { vs: "/vendor/monaco/vs" } });
+    const monaco = await new Promise((resolve, reject) => {
+      window.require(
+        ["vs/editor/editor.main"],
+        () => resolve(window.monaco),
+        (error) => reject(error)
+      );
+    });
+
+    state.workspace.monaco = monaco;
+    state.workspace.editor = monaco.editor.create(dom.editorHost, {
+      value: dom.answerInput.value || "",
+      language: "javascript",
+      theme: "vs-dark",
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 14,
+      tabSize: 2,
+      scrollBeyondLastLine: false,
+      wordWrap: "on",
+      ariaLabel: "BugOps code editor"
+    });
+    document.body.classList.add("monaco-ready");
+
+    state.workspace.editor.onDidChangeModelContent(() => {
+      dom.answerInput.value = state.workspace.editor.getValue();
+      saveCurrentDraft();
+      renderDiff();
+    });
+  } catch (error) {
+    console.warn(error);
+    showToast("Editor fallback is active. Monaco could not load.", "info");
+  }
+}
+
+function getEditorValue() {
+  return state.workspace.editor ? state.workspace.editor.getValue() : dom.answerInput.value;
+}
+
+function setEditorValue(value) {
+  dom.answerInput.value = value;
+  if (state.workspace.editor) {
+    state.workspace.editor.setValue(value);
+  }
+  renderDiff();
+}
+
+function setEditorLanguage(language) {
+  const monaco = state.workspace.monaco;
+  const editor = state.workspace.editor;
+  if (!monaco || !editor) {
+    return;
+  }
+
+  const languageId = {
+    JavaScript: "javascript",
+    Python: "python",
+    C: "c",
+    Java: "java"
+  }[language] || "plaintext";
+
+  monaco.editor.setModelLanguage(editor.getModel(), languageId);
+}
+
+function setEditorDisabled(disabled) {
+  dom.answerInput.disabled = disabled;
+  if (state.workspace.editor) {
+    state.workspace.editor.updateOptions({ readOnly: disabled, domReadOnly: disabled });
+  }
 }
 
 async function bootstrapRemoteState() {
@@ -233,12 +387,14 @@ async function bootstrapRemoteState() {
     if (state.auth.authenticated) {
       await migrateLegacyProgress();
       await loadProgress();
+      await loadEngagementState();
     }
   } catch (error) {
     console.warn(error);
     renderAuthState();
     showToast("Server sync is unavailable. This run will stay on this device.", "info");
   }
+  renderEngagementPanels();
 }
 
 async function apiRequest(path, options = {}) {
@@ -264,6 +420,21 @@ async function apiRequest(path, options = {}) {
   return payload.data ?? payload;
 }
 
+async function trackClientEvent(eventName, properties = {}) {
+  if (!state.auth.authenticated) {
+    return;
+  }
+
+  await apiRequest("/api/analytics/events", {
+    method: "POST",
+    body: {
+      eventName,
+      gameSessionId: state.serverSessionId || undefined,
+      properties
+    }
+  }).catch((error) => console.warn(error));
+}
+
 function renderAuthState() {
   const displayName = state.auth.user?.name || state.auth.user?.email || "signed-in player";
   dom.authStatus.textContent = state.auth.authenticated
@@ -277,6 +448,26 @@ function renderAuthState() {
 async function loadProgress() {
   const response = await apiRequest("/api/progress");
   state.progress = normalizeProgress(response.progress);
+}
+
+async function loadEngagementState() {
+  const [engagement, profile, mastery, history] = await Promise.all([
+    apiRequest("/api/engagement"),
+    apiRequest("/api/profile/me"),
+    apiRequest("/api/profile/mastery"),
+    apiRequest("/api/profile/history")
+  ]);
+
+  state.engagement.dailyBug = engagement.dailyBug || null;
+  state.engagement.weeklyQuests = engagement.weeklyQuests || [];
+  state.engagement.tracks = engagement.tracks || [];
+  state.engagement.profile = profile.profile || null;
+  state.engagement.achievements = profile.achievements || [];
+  state.engagement.mastery = mastery.mastery || null;
+  state.engagement.recommendations = mastery.recommendations || [];
+  state.engagement.history = history.history || [];
+  renderEngagementPanels();
+  renderTrackOptions();
 }
 
 async function migrateLegacyProgress() {
@@ -314,13 +505,30 @@ async function logout() {
   state.auth.user = null;
   state.serverSessionId = null;
   state.progress = normalizeProgress(INITIAL_PROGRESS);
+  state.engagement = {
+    dailyBug: null,
+    weeklyQuests: [],
+    tracks: [],
+    profile: null,
+    achievements: [],
+    history: [],
+    mastery: null,
+    recommendations: []
+  };
   renderAuthState();
   renderDashboard();
+  renderEngagementPanels();
   renderBadgeRack();
   showToast("Signed out. Progress sync is paused.", "info");
 }
 
 function handleGlobalShortcuts(event) {
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "Enter") {
+    event.preventDefault();
+    runTests();
+    return;
+  }
+
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
     submitAnswer();
@@ -342,6 +550,8 @@ function handleGlobalShortcuts(event) {
 async function startGame() {
   clearInterval(state.timerId);
   const selectedDifficulty = dom.difficultySelect.value;
+  const selectedMode = dom.modeSelect.value;
+  const selectedTrack = dom.trackSelect.value;
   saveUiPreferences();
 
   if (!state.auth.authenticated) {
@@ -365,6 +575,9 @@ async function startGame() {
     ...createEmptyGame(),
     active: true,
     selectedDifficulty,
+    mode: serverSession.mode || selectedMode,
+    trackId: serverSession.trackId || selectedTrack,
+    noHintMode: Boolean(serverSession.noHintMode),
     sessionChallenges,
     challengeIndex: serverSession.currentChallengeIndex,
     score: serverSession.score,
@@ -381,7 +594,10 @@ async function startGame() {
   dom.resultPanel.hidden = true;
   dom.feedback.className = "feedback";
   dom.aiOutput.textContent = "Arena online. Hints will stay partial until you submit.";
-  loadChallenge(state.game.challengeIndex);
+  if (serverSession.noHintMode) {
+    dom.aiOutput.textContent = "No-hint mode is active. The server will reject hint requests for this run.";
+  }
+  await loadChallenge(state.game.challengeIndex);
   updateHud();
   scrollIntoView("#play");
 }
@@ -391,7 +607,9 @@ async function createServerGameSession(selectedDifficulty) {
     const response = await apiRequest("/api/game-sessions", {
       method: "POST",
       body: {
-        selectedDifficulty
+        selectedDifficulty,
+        mode: dom.modeSelect.value,
+        trackId: dom.trackSelect.value
       }
     });
     return response.session;
@@ -407,7 +625,7 @@ function getChallengesByIds(challengeIds) {
   return challengeIds.map((id) => byId.get(id)).filter(Boolean);
 }
 
-function loadChallenge(index) {
+async function loadChallenge(index) {
   const challenge = state.game.sessionChallenges[index];
 
   if (!challenge) {
@@ -420,24 +638,216 @@ function loadChallenge(index) {
   state.game.answeredCurrent = false;
   state.game.submittedCurrent = false;
   state.game.timeLeft = DIFFICULTY_POINTS[challenge.difficulty].seconds;
+  state.workspace.currentServerChallenge = null;
+  state.workspace.lastRun = null;
+  state.workspace.hintLevel = 0;
 
   dom.challengeLanguage.textContent = challenge.language;
   dom.challengeDifficulty.textContent = challenge.difficulty;
   dom.challengeTopic.textContent = challenge.topic;
   dom.challengeTitle.textContent = challenge.title;
   dom.buggyCodeDisplay.textContent = challenge.buggyCode;
-  dom.answerInput.value = getDraftForChallenge(challenge.id) || challenge.buggyCode;
-  dom.answerInput.disabled = false;
+  setEditorLanguage(challenge.language);
+  setEditorValue(getDraftForChallenge(challenge.id) || challenge.buggyCode);
+  setEditorDisabled(false);
   dom.feedback.textContent = "";
   dom.feedback.className = "feedback";
   dom.nextChallenge.disabled = true;
   dom.submitAnswer.disabled = false;
-  dom.hintButton.disabled = false;
+  dom.hintButton.disabled = Boolean(state.game.noHintMode);
+  dom.runTests.disabled = false;
+  dom.resetCode.disabled = false;
+  dom.toggleDiff.disabled = false;
   dom.explainButton.disabled = false;
-  dom.aiOutput.textContent = "Challenge loaded. Request a hint for a small nudge.";
+  dom.aiOutput.textContent = state.game.noHintMode
+    ? "Challenge loaded. No-hint mode is active for this run."
+    : "Challenge loaded. Request a hint for a small nudge.";
+  clearWorkspaceOutputs();
+  renderHintLadder();
 
   updateHud();
   startTimer();
+  await loadWorkspaceChallenge();
+}
+
+async function loadWorkspaceChallenge() {
+  if (!state.serverSessionId) {
+    return;
+  }
+
+  try {
+    const response = await apiRequest(`/api/workspace/game-sessions/${state.serverSessionId}/current`);
+    const challenge = response.challenge;
+    if (!challenge) {
+      return;
+    }
+
+    state.workspace.currentServerChallenge = challenge;
+    dom.buggyCodeDisplay.textContent = challenge.starterCode;
+    if (!getDraftForChallenge(challenge.id)) {
+      setEditorValue(challenge.starterCode);
+    }
+    renderWorkspaceTests(challenge);
+    renderHintLadder();
+    renderDiff();
+  } catch (error) {
+    console.warn(error);
+    showToast("Workspace metadata is unavailable. Static challenge data is still loaded.", "info");
+  }
+}
+
+function clearWorkspaceOutputs() {
+  state.workspace.lastRun = null;
+  state.workspace.hintTexts = [];
+  dom.visibleTests.innerHTML = `<li><strong>Waiting for challenge tests</strong><span>Start a synced run to load visible tests.</span></li>`;
+  dom.hiddenTests.innerHTML = `<li><strong>Hidden validation</strong><span>Hidden tests appear after the server loads the challenge.</span></li>`;
+  dom.consoleOutput.textContent = "No run yet.";
+  dom.compilerOutput.textContent = "No compiler output.";
+  dom.expectedActualOutput.textContent = "Run tests to compare results.";
+  renderDiff();
+}
+
+function renderWorkspaceTests(challenge, run = state.workspace.lastRun) {
+  const visibleTests = challenge?.visibleTests || [];
+  const hiddenTests = challenge?.hiddenTests || [];
+  dom.visibleTests.innerHTML = visibleTests.length
+    ? visibleTests.map((test) => renderTestListItem(test, run)).join("")
+    : `<li><strong>No visible tests</strong><span>The server did not provide visible tests.</span></li>`;
+  dom.hiddenTests.innerHTML = hiddenTests.length
+    ? hiddenTests.map((test) => renderTestListItem(test, run)).join("")
+    : `<li><strong>No hidden tests</strong><span>This challenge has no hidden checks.</span></li>`;
+}
+
+function renderTestListItem(test, run) {
+  const result = run?.results?.find((candidate) => candidate.id === test.id);
+  const statusClass = result ? ` class="is-${result.status}"` : "";
+  const status = result ? result.status.toUpperCase() : test.expected;
+  return `<li${statusClass}><strong>${escapeHtml(test.name)}</strong><span>${escapeHtml(status)}</span></li>`;
+}
+
+function renderExecutionResult(run) {
+  state.workspace.lastRun = run;
+  renderWorkspaceTests(state.workspace.currentServerChallenge, run);
+  dom.consoleOutput.textContent = run.consoleOutput?.length ? run.consoleOutput.join("\n") : "No console output.";
+  dom.compilerOutput.textContent = run.compilerOutput || "No compiler output.";
+
+  if (!run.results?.length) {
+    dom.expectedActualOutput.textContent = "No test results returned.";
+    return;
+  }
+
+  dom.expectedActualOutput.innerHTML = run.results
+    .map(
+      (result) => `
+        <div class="comparison-row">
+          <span><strong>${escapeHtml(result.name)}</strong><br>${escapeHtml(result.status)}</span>
+          <span><strong>Expected</strong><br>${escapeHtml(result.expected || "")}</span>
+          <span><strong>Actual</strong><br>${escapeHtml(result.actual || "")}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+async function runTests() {
+  const challenge = state.game.currentChallenge;
+  if (!state.game.active || !challenge || !state.serverSessionId) {
+    showToast("Start a signed-in run before testing.", "info");
+    return null;
+  }
+
+  dom.runTests.disabled = true;
+  dom.consoleOutput.textContent = "Running tests in the server execution provider...";
+  dom.compilerOutput.textContent = "Waiting for compiler output...";
+
+  try {
+    const response = await apiRequest("/api/workspace/run-tests", {
+      method: "POST",
+      body: {
+        gameSessionId: state.serverSessionId,
+        code: getEditorValue()
+      }
+    });
+    const run = response.run;
+    renderExecutionResult(run);
+    updateFeedback(run.passed ? "success" : "error", run.passed ? "All visible and hidden tests passed." : "Some tests are still failing.");
+    return run;
+  } catch (error) {
+    console.warn(error);
+    dom.compilerOutput.textContent = error.message || "Test run failed.";
+    updateFeedback("error", error.message || "Test run failed.");
+    return null;
+  } finally {
+    dom.runTests.disabled = false;
+  }
+}
+
+function resetCode() {
+  const challenge = state.workspace.currentServerChallenge || state.game.currentChallenge;
+  if (!challenge) {
+    return;
+  }
+
+  const starterCode = challenge.starterCode || challenge.buggyCode || "";
+  setEditorValue(starterCode);
+  clearDraftForChallenge(challenge.id);
+  state.workspace.lastRun = null;
+  renderWorkspaceTests(state.workspace.currentServerChallenge);
+  dom.consoleOutput.textContent = "Reset to starter code.";
+  dom.compilerOutput.textContent = "No compiler output.";
+  dom.expectedActualOutput.textContent = "Run tests to compare results.";
+}
+
+function toggleDiff() {
+  state.workspace.diffVisible = !state.workspace.diffVisible;
+  dom.diffPanel.hidden = !state.workspace.diffVisible;
+  dom.toggleDiff.setAttribute("aria-expanded", String(state.workspace.diffVisible));
+  renderDiff();
+}
+
+function renderDiff() {
+  if (!dom.diffPanel || dom.diffPanel.hidden) {
+    return;
+  }
+
+  const challenge = state.workspace.currentServerChallenge || state.game.currentChallenge;
+  const starterCode = challenge?.starterCode || challenge?.buggyCode || "";
+  const currentCode = getEditorValue();
+  dom.diffOutput.innerHTML = buildSimpleDiff(starterCode, currentCode);
+}
+
+function buildSimpleDiff(before, after) {
+  const beforeLines = String(before || "").split("\n");
+  const afterLines = String(after || "").split("\n");
+  const max = Math.max(beforeLines.length, afterLines.length);
+  const rows = [];
+
+  for (let index = 0; index < max; index += 1) {
+    const previous = beforeLines[index];
+    const current = afterLines[index];
+    if (previous === current) {
+      rows.push(`<span class="diff-line is-same">  ${escapeHtml(current || "")}</span>`);
+    } else {
+      if (typeof previous === "string") {
+        rows.push(`<span class="diff-line is-removed">- ${escapeHtml(previous)}</span>`);
+      }
+      if (typeof current === "string") {
+        rows.push(`<span class="diff-line is-added">+ ${escapeHtml(current)}</span>`);
+      }
+    }
+  }
+
+  return rows.join("") || `<span class="diff-line is-same">No differences.</span>`;
+}
+
+function renderHintLadder() {
+  const total = state.workspace.currentServerChallenge?.hintsAvailable || 5;
+  dom.hintLadder.innerHTML = Array.from({ length: total }, (_, index) => {
+    const level = index + 1;
+    const text = state.workspace.hintTexts[index] || `Hint ${level}`;
+    const unlocked = index < state.workspace.hintLevel;
+    return `<li class="${unlocked ? "is-unlocked" : ""}"><strong>${level}</strong><br>${escapeHtml(unlocked ? text : "Locked")}</li>`;
+  }).join("");
 }
 
 function startTimer() {
@@ -466,7 +876,7 @@ async function submitAnswer() {
     return;
   }
 
-  const answer = dom.answerInput.value;
+  const answer = getEditorValue();
   game.submittedCurrent = true;
   dom.submitAnswer.disabled = true;
 
@@ -489,12 +899,18 @@ async function submitAnswer() {
     if (response.progress) {
       state.progress = normalizeProgress(response.progress);
     }
+    if (response.execution) {
+      renderExecutionResult(response.execution);
+    }
 
     renderSubmissionOutcome(response, challenge);
     persistProgress();
     updateHud();
     renderDashboard();
     renderBadgeRack();
+    if (state.auth.authenticated) {
+      await loadEngagementState().catch((error) => console.warn(error));
+    }
   } catch (error) {
     console.warn(error);
     showToast(error.message || "Submission sync failed.", "info");
@@ -508,29 +924,33 @@ function renderSubmissionOutcome(response, challenge) {
 
   if (response.session?.status && response.session.status !== "IN_PROGRESS") {
     state.game.answeredCurrent = true;
-    dom.answerInput.disabled = true;
+    setEditorDisabled(true);
     dom.hintButton.disabled = true;
+    dom.runTests.disabled = true;
+    dom.resetCode.disabled = true;
     dom.nextChallenge.disabled = true;
     clearDraftForChallenge(challenge.id);
     const title = response.session.status === "LOCKED" ? "System Lockout" : "Arena Cleared";
     const copy = outcome.timedOut
-      ? `Time expired. ${challenge.explanation}`
+      ? `Time expired. ${response.rootCause || "Review the failed tests and retry the pattern in a fresh run."}`
       : outcome.isCorrect
-        ? `Correct. ${challenge.explanation}`
-        : `Still buggy. ${challenge.explanation}`;
+        ? `Correct. ${response.rootCause || challenge.explanation}`
+        : "Still buggy. The server tests did not accept this fix.";
     updateFeedback(outcome.isCorrect ? "success" : "error", copy);
-    dom.aiOutput.textContent = challenge.explanation;
+    dom.aiOutput.textContent = response.rootCause || copy;
     finishGameFromServer(title, response.session);
     return;
   }
 
   if (outcome.isCorrect) {
     state.game.answeredCurrent = true;
-    updateFeedback("success", `Correct. ${challenge.explanation}`);
-    dom.aiOutput.textContent = challenge.explanation;
+    updateFeedback("success", `Correct. ${response.rootCause || challenge.explanation}`);
+    dom.aiOutput.textContent = response.rootCause || challenge.explanation;
     dom.nextChallenge.disabled = false;
     dom.submitAnswer.disabled = true;
-    dom.answerInput.disabled = true;
+    dom.runTests.disabled = true;
+    dom.resetCode.disabled = true;
+    setEditorDisabled(true);
     clearDraftForChallenge(challenge.id);
     triggerConfetti();
     return;
@@ -538,23 +958,25 @@ function renderSubmissionOutcome(response, challenge) {
 
   if (outcome.timedOut) {
     state.game.answeredCurrent = true;
-    updateFeedback("error", `Time expired. ${challenge.explanation}`);
-    dom.aiOutput.textContent = challenge.explanation;
+    updateFeedback("error", `Time expired. ${response.rootCause || "The run expired before a server-verified fix landed."}`);
+    dom.aiOutput.textContent = response.rootCause || "The run expired before a server-verified fix landed.";
     dom.nextChallenge.disabled = false;
     dom.submitAnswer.disabled = true;
-    dom.answerInput.disabled = true;
+    dom.runTests.disabled = true;
+    dom.resetCode.disabled = true;
+    setEditorDisabled(true);
     clearDraftForChallenge(challenge.id);
     return;
   }
 
   state.game.answeredCurrent = false;
   state.game.submittedCurrent = false;
-  updateFeedback("error", `Still buggy. ${challenge.explanation}`);
-  dom.aiOutput.textContent = challenge.explanation;
+  updateFeedback("error", "Still buggy. Use the failing expected/actual output before submitting again.");
+  dom.aiOutput.textContent = "The root cause unlocks after the server verifies the fix.";
   dom.nextChallenge.disabled = true;
   dom.submitAnswer.disabled = false;
-  dom.answerInput.disabled = false;
-  pulseElement(dom.answerInput);
+  setEditorDisabled(false);
+  pulseElement(dom.editorHost || dom.answerInput);
 }
 
 async function handleTimeout() {
@@ -573,7 +995,7 @@ function moveToNextChallenge() {
     return;
   }
 
-  loadChallenge(state.game.challengeIndex);
+  void loadChallenge(state.game.challengeIndex);
 }
 
 function applyServerSession(session) {
@@ -582,6 +1004,9 @@ function applyServerSession(session) {
   }
 
   state.game.score = session.score;
+  state.game.mode = session.mode || state.game.mode;
+  state.game.trackId = session.trackId || state.game.trackId;
+  state.game.noHintMode = Boolean(session.noHintMode);
   state.game.xp = session.xp;
   state.game.correct = session.correct;
   state.game.attempts = session.attempts;
@@ -616,6 +1041,9 @@ function finishGameFromServer(title, session) {
   dom.nextChallenge.disabled = true;
   dom.submitAnswer.disabled = true;
   dom.hintButton.disabled = true;
+  dom.runTests.disabled = true;
+  dom.resetCode.disabled = true;
+  dom.toggleDiff.disabled = true;
   renderDashboard();
   renderBadgeRack();
   triggerConfetti();
@@ -627,8 +1055,18 @@ async function requestHint() {
     return;
   }
 
+  if (state.game.noHintMode) {
+    updateFeedback("info", "No-hint mode is active. Hints are blocked for this run.");
+    dom.aiOutput.textContent = "Use visible tests, expected versus actual output, and the diff view to reason through this one.";
+    return;
+  }
+
   dom.aiOutput.textContent = "Generating hint...";
   const hint = await getAiText("hint", challenge.hint, challenge, false);
+  const nextLevel = Math.min(state.workspace.currentServerChallenge?.hintsAvailable || 5, state.workspace.hintLevel + 1);
+  state.workspace.hintLevel = nextLevel;
+  state.workspace.hintTexts[nextLevel - 1] = hint;
+  renderHintLadder();
   dom.aiOutput.textContent = hint;
   updateFeedback("info", `Hint: ${hint}`);
   updateHud();
@@ -700,11 +1138,7 @@ function clearApiKey() {
 async function testAiHint() {
   const challenge = state.challenges[0];
   dom.aiOutput.textContent = "Testing AI hint path...";
-  const prompt = [
-    "Give one short debugging hint. Do not reveal the answer.",
-    `Buggy code:\n${challenge.buggyCode}`
-  ].join("\n");
-  const hint = await getAiText(prompt, challenge.hint, challenge, false);
+  const hint = await getAiText("hint", challenge.hint, challenge, false);
   dom.aiOutput.textContent = hint;
   updateFeedback("info", `AI Helper: ${hint}`);
 }
@@ -749,6 +1183,11 @@ async function renderLeaderboard() {
     console.warn(error);
   }
   const rows = entries.length ? entries : sampleLeaders;
+  [dom.leaderboardWeekly, dom.leaderboardMonthly, dom.leaderboardAllTime].forEach((button) => {
+    const isActive = button.dataset.scope === state.leaderboardScope;
+    button.classList.toggle("btn-secondary", isActive);
+    button.classList.toggle("btn-ghost", !isActive);
+  });
 
   dom.leaderboardBody.innerHTML = rows
     .map((entry, index) => `
@@ -799,6 +1238,7 @@ function renderDashboard() {
 
   renderTopicBars();
   renderRecommendations(accuracy, weakTopic, recommendedTopic, bestDifficulty);
+  renderEngagementPanels();
 }
 
 function renderTopicBars() {
@@ -825,6 +1265,21 @@ function renderTopicBars() {
 }
 
 function renderRecommendations(accuracy, weakTopic, recommendedTopic, bestDifficulty) {
+  if (state.engagement.recommendations.length) {
+    dom.recommendationPanel.innerHTML = state.engagement.recommendations
+      .map(
+        (recommendation) => `
+          <div class="recommendation-card">
+            <span>${escapeHtml(recommendation.mode.replaceAll("_", " "))}</span>
+            <strong>${escapeHtml(recommendation.title)}</strong>
+            <p>${escapeHtml(recommendation.reason)} ${escapeHtml(recommendation.action)}</p>
+          </div>
+        `
+      )
+      .join("");
+    return;
+  }
+
   const xpPercent = Math.min(100, Math.round((state.progress.totalXP % 500) / 5));
   dom.recommendationPanel.innerHTML = `
     <div class="recommendation-card">
@@ -847,6 +1302,129 @@ function renderRecommendations(accuracy, weakTopic, recommendedTopic, bestDiffic
       <p>Play a targeted run to raise your weakest accuracy band.</p>
     </div>
   `;
+}
+
+function renderEngagementPanels() {
+  renderDailyBug();
+  renderWeeklyQuests();
+  renderTracks();
+  renderMastery();
+  renderHistory();
+  renderProfilePanel();
+}
+
+function renderDailyBug() {
+  const dailyBug = state.engagement.dailyBug;
+  dom.dailyBugPanel.innerHTML = dailyBug
+    ? `
+      <div class="recommendation-card">
+        <span>${escapeHtml(dailyBug.language)} · ${escapeHtml(dailyBug.difficulty)}</span>
+        <strong>${escapeHtml(dailyBug.title)}</strong>
+        <p>${escapeHtml(dailyBug.topic)} · ${escapeHtml(dailyBug.engagementKey || "daily")}</p>
+      </div>
+    `
+    : `<p class="muted-copy">Sign in to load today&apos;s server-selected bug.</p>`;
+}
+
+function renderWeeklyQuests() {
+  const quests = state.engagement.weeklyQuests || [];
+  dom.weeklyQuestsPanel.innerHTML = quests.length
+    ? quests
+        .map((quest) => {
+          const percent = Math.round((quest.progress / Math.max(1, quest.target)) * 100);
+          return `
+            <div class="metric-row compact">
+              <div>
+                <strong>${escapeHtml(quest.label)}</strong>
+                <span>${quest.progress}/${quest.target} · +${quest.rewardXp} XP</span>
+              </div>
+              <div class="progress-bar"><span style="width: ${percent}%"></span></div>
+              <em>${quest.completed ? "Done" : `${percent}%`}</em>
+            </div>
+          `;
+        })
+        .join("")
+    : `<p class="muted-copy">Weekly quests load after sign-in.</p>`;
+}
+
+function renderTracks() {
+  const tracks = state.engagement.tracks || [];
+  dom.tracksPanel.innerHTML = tracks.length
+    ? tracks
+        .slice(0, 8)
+        .map(
+          (track) => `
+            <div class="track-chip">
+              <strong>${escapeHtml(track.label)}</strong>
+              <span>${escapeHtml(track.level)}${track.language ? ` · ${escapeHtml(track.language)}` : ""}</span>
+            </div>
+          `
+        )
+        .join("")
+    : `<p class="muted-copy">Beginner, intermediate, advanced, language, and placement tracks are available after sign-in.</p>`;
+}
+
+function renderMastery() {
+  const mastery = state.engagement.mastery;
+  const items = [
+    ...(mastery?.topics || []).slice(0, 3).map((item) => ({ ...item, group: "Topic" })),
+    ...(mastery?.languages || []).slice(0, 2).map((item) => ({ ...item, group: "Language" }))
+  ];
+  dom.masteryPanel.innerHTML = items.length
+    ? items
+        .map(
+          (item) => `
+            <div class="metric-row compact">
+              <div>
+                <strong>${escapeHtml(item.key)}</strong>
+                <span>${escapeHtml(item.group)} · ${escapeHtml(item.mastery)}</span>
+              </div>
+              <div class="progress-bar"><span style="width: ${item.accuracy}%"></span></div>
+              <em>${item.accuracy}%</em>
+            </div>
+          `
+        )
+        .join("")
+    : `<p class="muted-copy">Mastery appears after a few server-scored submissions.</p>`;
+}
+
+function renderHistory() {
+  const history = state.engagement.history || [];
+  dom.historyPanel.innerHTML = history.length
+    ? history
+        .slice(0, 8)
+        .map(
+          (entry) => `
+            <div class="history-row">
+              <strong>${escapeHtml(entry.title)}</strong>
+              <span>${entry.isCorrect ? "Fixed" : "Missed"} · ${escapeHtml(entry.language)} · ${entry.hintsUsed} hints · ${entry.timeLeftSeconds}s left</span>
+            </div>
+          `
+        )
+        .join("")
+    : `<p class="muted-copy">Challenge history will appear here without storing submitted source code.</p>`;
+}
+
+function renderProfilePanel() {
+  const achievements = state.engagement.achievements || [];
+  dom.profilePanel.innerHTML = state.auth.authenticated
+    ? `
+      <div class="profile-summary">
+        <span>${escapeHtml(state.auth.user?.name || state.auth.user?.email || "Signed-in player")}</span>
+        <strong>${state.progress.totalXP} XP · ${state.progress.bugsFixed} bugs fixed</strong>
+      </div>
+      <div class="achievement-grid">
+        ${
+          achievements.length
+            ? achievements
+                .slice(0, 12)
+                .map((achievement) => `<span class="badge-chip">${escapeHtml(achievement.label || achievement.code)}</span>`)
+                .join("")
+            : '<span class="badge-empty">No achievements yet</span>'
+        }
+      </div>
+    `
+    : `<p class="muted-copy">Sign in to see profile, achievements, mastery, and history.</p>`;
 }
 
 function renderBadgeRack() {
@@ -912,12 +1490,16 @@ function setArenaIdle() {
   dom.challengeTopic.textContent = "Functions";
   dom.challengeTitle.textContent = "Press Start Run";
   dom.buggyCodeDisplay.textContent = "Choose a difficulty and enter the arena.";
-  dom.answerInput.value = "";
-  dom.answerInput.disabled = true;
+  setEditorValue("");
+  setEditorDisabled(true);
   dom.hintButton.disabled = true;
+  dom.runTests.disabled = true;
+  dom.resetCode.disabled = true;
+  dom.toggleDiff.disabled = true;
   dom.submitAnswer.disabled = true;
   dom.explainButton.disabled = false;
   dom.nextChallenge.disabled = true;
+  clearWorkspaceOutputs();
   updateHud();
 }
 
@@ -1148,15 +1730,61 @@ function loadUiPreferences() {
   if (["All", "Easy", "Medium", "Hard"].includes(difficulty)) {
     dom.difficultySelect.value = difficulty;
   }
+  if (["standard", "daily_bug", "track", "placement_prep", "no_hint", "boss"].includes(preferences?.mode)) {
+    dom.modeSelect.value = preferences.mode;
+  }
+  if (typeof preferences?.trackId === "string" && preferences.trackId) {
+    dom.trackSelect.value = preferences.trackId;
+  }
+  if (["weekly", "monthly", "all_time"].includes(preferences?.leaderboardScope)) {
+    state.leaderboardScope = preferences.leaderboardScope;
+  }
+  updateModeControls();
 }
 
 function saveUiPreferences() {
   localStorage.setItem(
     STORAGE_KEYS.uiPreferences,
     JSON.stringify({
-      difficulty: dom.difficultySelect.value
+      difficulty: dom.difficultySelect.value,
+      mode: dom.modeSelect.value,
+      trackId: dom.trackSelect.value,
+      leaderboardScope: state.leaderboardScope
     })
   );
+}
+
+function updateModeControls() {
+  const mode = dom.modeSelect.value;
+  dom.trackSelect.disabled = mode !== "track";
+  if (mode === "placement_prep") {
+    dom.trackSelect.value = "placement-prep";
+  }
+  if (mode === "boss") {
+    dom.trackSelect.value = "advanced";
+  }
+}
+
+function renderTrackOptions() {
+  const tracks = state.engagement.tracks.length
+    ? state.engagement.tracks
+    : [
+        { id: "beginner", label: "Beginner" },
+        { id: "intermediate", label: "Intermediate" },
+        { id: "advanced", label: "Advanced" },
+        { id: "language-javascript", label: "JavaScript" },
+        { id: "language-python", label: "Python" },
+        { id: "language-c", label: "C" },
+        { id: "language-java", label: "Java" }
+      ];
+  const current = dom.trackSelect.value;
+  dom.trackSelect.innerHTML = tracks
+    .map((track) => `<option value="${escapeHtml(track.id)}">${escapeHtml(track.label)}</option>`)
+    .join("");
+  if (tracks.some((track) => track.id === current)) {
+    dom.trackSelect.value = current;
+  }
+  updateModeControls();
 }
 
 function getDraftForChallenge(challengeId) {
@@ -1171,7 +1799,7 @@ function saveCurrentDraft() {
   }
 
   const drafts = readJson(STORAGE_KEYS.editorDrafts, {});
-  drafts[challenge.id] = dom.answerInput.value;
+  drafts[challenge.id] = getEditorValue();
   localStorage.setItem(STORAGE_KEYS.editorDrafts, JSON.stringify(drafts));
 }
 
@@ -1183,7 +1811,7 @@ function restoreCurrentDraft() {
 
   const draft = getDraftForChallenge(challenge.id);
   if (draft) {
-    dom.answerInput.value = draft;
+    setEditorValue(draft);
   }
 }
 

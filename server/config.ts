@@ -21,6 +21,7 @@ const envSchema = z.object({
 });
 
 export const env = envSchema.parse(process.env);
+process.env.DATABASE_URL = env.DATABASE_URL;
 
 if (env.NODE_ENV === "production" && env.SESSION_SECRET === "dev-only-change-me-bugops-session-secret") {
   throw new Error("SESSION_SECRET must be set to a strong secret in production.");

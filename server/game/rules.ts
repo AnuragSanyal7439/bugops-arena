@@ -102,6 +102,7 @@ export function calculateServerSubmissionOutcome(input: {
   challengeStartedAt: Date;
   submittedAt: Date;
   hintsUsedForChallenge: number;
+  verifiedCorrect?: boolean;
 }): ServerSubmissionOutcome {
   const difficulty = toDifficultyLabel(input.challenge.difficulty);
   const points = difficultyPoints[difficulty];
@@ -122,11 +123,10 @@ export function calculateServerSubmissionOutcome(input: {
     };
   }
 
-  const isCorrect = isAnswerCorrect(
-    input.answer,
-    input.challenge.activeVersion.correctFix,
-    input.challenge.activeVersion.buggyCode
-  );
+  const isCorrect =
+    typeof input.verifiedCorrect === "boolean"
+      ? input.verifiedCorrect
+      : isAnswerCorrect(input.answer, input.challenge.activeVersion.correctFix, input.challenge.activeVersion.buggyCode);
 
   if (!isCorrect) {
     return {

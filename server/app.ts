@@ -13,6 +13,10 @@ import { progressRouter } from "./routes/progress.js";
 import { gameRouter } from "./routes/game.js";
 import { leaderboardRouter } from "./routes/leaderboard.js";
 import { aiRouter } from "./routes/ai.js";
+import { workspaceRouter } from "./routes/workspace.js";
+import { engagementRouter } from "./routes/engagement.js";
+import { profileRouter } from "./routes/profile.js";
+import { analyticsRouter } from "./routes/analytics.js";
 
 const rootDir = process.cwd();
 const publicAssets = new Set([
@@ -43,7 +47,9 @@ export function createApp(): express.Express {
           "script-src": ["'self'", "'unsafe-inline'"],
           "style-src": ["'self'", "'unsafe-inline'"],
           "img-src": ["'self'", "data:", "https:"],
+          "font-src": ["'self'", "data:"],
           "connect-src": ["'self'"],
+          "worker-src": ["'self'", "blob:"],
           "object-src": ["'none'"],
           "base-uri": ["'self'"],
           "form-action": ["'self'"]
@@ -85,6 +91,18 @@ export function createApp(): express.Express {
   app.use(gameRouter);
   app.use(leaderboardRouter);
   app.use(aiRouter);
+  app.use(workspaceRouter);
+  app.use(engagementRouter);
+  app.use(profileRouter);
+  app.use(analyticsRouter);
+
+  app.use(
+    "/vendor/monaco/vs",
+    express.static(path.join(rootDir, "node_modules", "monaco-editor", "min", "vs"), {
+      immutable: true,
+      maxAge: "1y"
+    })
+  );
 
   app.get(Array.from(publicAssets), (req, res, next) => {
     const requestedPath = req.path === "/" ? "/index.html" : req.path;

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { getMonthStart, getWeekStart } from "../game/engagement.js";
 import { getAccuracy } from "../game/rules.js";
 import { currentUserId, requireAuth } from "../http/auth.js";
 import { asyncHandler, HttpError } from "../http/errors.js";
@@ -14,10 +15,25 @@ export const submitLeaderboardSchema = z
   })
   .strict();
 
+export const leaderboardQuerySchema = z
+  .object({
+    scope: z.enum(["weekly", "monthly", "all_time"]).default("all_time")
+  })
+  .strict();
+
 leaderboardRouter.get(
   "/api/leaderboard",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const query = leaderboardQuerySchema.parse(req.query);
+    const now = new Date();
+    const createdAt =
+      query.scope === "weekly"
+        ? { gte: getWeekStart(now) }
+        : query.scope === "monthly"
+          ? { gte: getMonthStart(now) }
+          : undefined;
     const entries = await prisma.leaderboard.findMany({
+      where: createdAt ? { createdAt } : undefined,
       orderBy: [{ score: "desc" }, { timeTaken: "asc" }, { accuracy: "desc" }, { createdAt: "asc" }],
       take: 12,
       select: {
@@ -32,7 +48,7 @@ leaderboardRouter.get(
       }
     });
 
-    res.json({ data: { entries } });
+    res.json({ data: { scope: query.scope, entries } });
   })
 );
 

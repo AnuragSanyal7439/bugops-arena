@@ -45,6 +45,7 @@ model User {
   achievements Achievement[]
   leaderboard Leaderboard[]
   aiUsage     AiUsageEvent[]
+  analytics   AnalyticsEvent[]
 }
 
 model Account {
@@ -102,7 +103,10 @@ model ChallengeVersion {
   buggyCode   String
   correctFix  String
   hint        String
+  hints       Json         @default("[]")
+  testCases   Json         @default("[]")
   explanation String
+  rootCause   String       @default("")
   isActive    Boolean      @default(true)
   createdAt   DateTime     @default(now())
   challenge   Challenge    @relation(fields: [challengeId], references: [id], onDelete: Cascade)
@@ -116,6 +120,11 @@ model GameSession {
   id                        String            @id @default(uuid()) @db.Uuid
   userId                    String            @db.Uuid
   selectedDifficulty        String
+  mode                      String            @default("standard")
+  trackId                   String?
+  engagementKey             String?
+  noHintMode                Boolean           @default(false)
+  bossChallenge             Boolean           @default(false)
   status                    GameSessionStatus @default(IN_PROGRESS)
   score                     Int               @default(0)
   xp                        Int               @default(0)
@@ -138,6 +147,8 @@ model GameSession {
   leaderboard               Leaderboard?
 
   @@index([userId, createdAt])
+  @@index([mode, createdAt])
+  @@index([trackId, createdAt])
   @@index([status])
 }
 
@@ -153,6 +164,9 @@ model Submission {
   xpAwarded          Int               @default(0)
   timeLeftSeconds    Int               @default(0)
   hintsUsed          Int               @default(0)
+  testResults        Json?
+  consoleOutput      String?
+  compilerOutput     String?
   createdAt          DateTime          @default(now())
   user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   gameSession        GameSession?      @relation(fields: [gameSessionId], references: [id], onDelete: SetNull)
@@ -207,6 +221,20 @@ model AiUsageEvent {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([gameSessionId, createdAt])
+}
+
+model AnalyticsEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String?  @db.Uuid
+  gameSessionId String?  @db.Uuid
+  eventName     String
+  properties    Json     @default("{}")
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([eventName, createdAt])
   @@index([gameSessionId, createdAt])
 }
 

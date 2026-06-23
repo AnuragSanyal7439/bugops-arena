@@ -3,6 +3,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { PrismaClient } from "@prisma/client";
 import { toDifficultyEnum } from "../server/game/rules.js";
+import { buildRootCause, buildWorkspaceHints, buildWorkspaceTestCases } from "../server/game/workspace.js";
 
 const prisma = new PrismaClient();
 
@@ -36,7 +37,10 @@ async function main(): Promise<void> {
             buggyCode: challenge.buggyCode,
             correctFix: challenge.correctFix,
             hint: challenge.hint,
+            hints: buildWorkspaceHints(challenge),
+            testCases: buildWorkspaceTestCases(challenge),
             explanation: challenge.explanation,
+            rootCause: buildRootCause(challenge),
             isActive: true
           }
         }
@@ -59,14 +63,20 @@ async function main(): Promise<void> {
               buggyCode: challenge.buggyCode,
               correctFix: challenge.correctFix,
               hint: challenge.hint,
+              hints: buildWorkspaceHints(challenge),
+              testCases: buildWorkspaceTestCases(challenge),
               explanation: challenge.explanation,
+              rootCause: buildRootCause(challenge),
               isActive: true
             },
             update: {
               buggyCode: challenge.buggyCode,
               correctFix: challenge.correctFix,
               hint: challenge.hint,
+              hints: buildWorkspaceHints(challenge),
+              testCases: buildWorkspaceTestCases(challenge),
               explanation: challenge.explanation,
+              rootCause: buildRootCause(challenge),
               isActive: true
             }
           }

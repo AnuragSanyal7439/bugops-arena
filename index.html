@@ -158,6 +158,25 @@
             <option value="Medium">Medium</option>
             <option value="Hard">Hard</option>
           </select>
+          <label for="mode-select">Mode</label>
+          <select id="mode-select">
+            <option value="standard">Standard</option>
+            <option value="daily_bug">Daily Bug</option>
+            <option value="track">Track</option>
+            <option value="placement_prep">Placement Prep</option>
+            <option value="no_hint">No-Hint</option>
+            <option value="boss">Boss</option>
+          </select>
+          <label for="track-select">Track</label>
+          <select id="track-select">
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+            <option value="language-javascript">JavaScript</option>
+            <option value="language-python">Python</option>
+            <option value="language-c">C</option>
+            <option value="language-java">Java</option>
+          </select>
           <button class="btn btn-primary" id="start-game" type="button">Start Run</button>
         </div>
       </div>
@@ -196,15 +215,62 @@
             <span id="challenge-topic">Functions</span>
           </div>
           <h3 id="challenge-title">Press Start Run</h3>
-          <pre class="code-display" id="buggy-code-display"><code>Choose a difficulty and enter the arena.</code></pre>
-          <label class="editor-label" for="answer-input">Your fix</label>
-          <textarea id="answer-input" spellcheck="false" placeholder="Fix the code here..."></textarea>
+          <div class="workspace-layout">
+            <section class="editor-workspace" aria-labelledby="editor-label">
+              <div class="workspace-topline">
+                <span>Starter Code</span>
+                <button class="btn btn-ghost btn-small" id="reset-code" type="button">Reset code</button>
+              </div>
+              <pre class="code-display" id="buggy-code-display"><code>Choose a difficulty and enter the arena.</code></pre>
+              <label class="editor-label" id="editor-label" for="answer-input">Your fix</label>
+              <div class="editor-frame">
+                <div id="editor-host" role="application" aria-label="Code editor"></div>
+                <textarea id="answer-input" spellcheck="false" placeholder="Fix the code here..."></textarea>
+              </div>
+            </section>
+
+            <section class="test-workspace" aria-label="Challenge tests and output">
+              <div class="test-grid">
+                <article class="test-card">
+                  <h4>Visible Tests</h4>
+                  <ul id="visible-tests" class="test-list"></ul>
+                </article>
+                <article class="test-card">
+                  <h4>Hidden Tests</h4>
+                  <ul id="hidden-tests" class="test-list"></ul>
+                </article>
+              </div>
+
+              <div class="output-grid">
+                <article class="output-card">
+                  <h4>Console</h4>
+                  <pre id="console-output">No run yet.</pre>
+                </article>
+                <article class="output-card">
+                  <h4>Compiler</h4>
+                  <pre id="compiler-output">No compiler output.</pre>
+                </article>
+                <article class="output-card expected-card">
+                  <h4>Expected vs Actual</h4>
+                  <div id="expected-actual-output">Run tests to compare results.</div>
+                </article>
+              </div>
+
+              <article class="diff-panel" id="diff-panel" hidden>
+                <h4>Code Diff</h4>
+                <pre id="diff-output"></pre>
+              </article>
+            </section>
+          </div>
           <div class="button-row">
+            <button class="btn btn-secondary" id="run-tests" type="button">Run Tests</button>
             <button class="btn btn-secondary" id="hint-button" type="button">Hint</button>
             <button class="btn btn-primary" id="submit-answer" type="button">Submit Answer</button>
+            <button class="btn btn-ghost" id="toggle-diff" type="button" aria-expanded="false">Diff</button>
             <button class="btn btn-ghost" id="explain-button" type="button">Explain Bug</button>
             <button class="btn btn-ghost" id="next-challenge" type="button">Next</button>
           </div>
+          <ol class="hint-ladder" id="hint-ladder" aria-label="Progressive hints"></ol>
           <div class="feedback" id="feedback" aria-live="polite"></div>
         </article>
 
@@ -258,6 +324,20 @@
         <button class="btn btn-ghost" id="reset-progress" type="button">Reset Progress</button>
       </div>
       <div class="stats-grid" id="dashboard-stats"></div>
+      <div class="engagement-grid">
+        <article class="analytics-panel">
+          <h3>Daily Bug</h3>
+          <div id="daily-bug-panel"></div>
+        </article>
+        <article class="analytics-panel">
+          <h3>Weekly Quests</h3>
+          <div id="weekly-quests-panel"></div>
+        </article>
+        <article class="analytics-panel">
+          <h3>Tracks</h3>
+          <div id="tracks-panel"></div>
+        </article>
+      </div>
       <div class="analytics-grid">
         <article class="analytics-panel">
           <h3>Topic Performance</h3>
@@ -268,13 +348,32 @@
           <div id="recommendation-panel"></div>
         </article>
       </div>
+      <div class="analytics-grid">
+        <article class="analytics-panel">
+          <h3>Skill Mastery</h3>
+          <div id="mastery-panel"></div>
+        </article>
+        <article class="analytics-panel">
+          <h3>Challenge History</h3>
+          <div id="history-panel"></div>
+        </article>
+      </div>
+      <div class="analytics-panel profile-panel">
+        <h3>User Profile & Achievements</h3>
+        <div id="profile-panel"></div>
+      </div>
     </section>
 
     <section class="section-shell leaderboard-zone" id="leaderboard">
       <div class="section-heading">
         <p class="eyebrow">Real-time MVP</p>
         <h2>Leaderboard</h2>
-        <p>Local live rankings update instantly in this browser and across open tabs.</p>
+        <p>Rankings are database-backed and can be viewed weekly, monthly, or all-time.</p>
+        <div class="leaderboard-tabs" role="group" aria-label="Leaderboard scope">
+          <button class="btn btn-secondary" id="leaderboard-weekly" type="button" data-scope="weekly">Weekly</button>
+          <button class="btn btn-ghost" id="leaderboard-monthly" type="button" data-scope="monthly">Monthly</button>
+          <button class="btn btn-ghost" id="leaderboard-all-time" type="button" data-scope="all_time">All-time</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -328,6 +427,7 @@
   <script>
     window.BUGOPS_ENV = window.BUGOPS_ENV || {};
   </script>
+  <script src="/vendor/monaco/vs/loader.js"></script>
   <script src="levels.js"></script>
   <script src="script.js" defer></script>
 </body>

@@ -5,23 +5,32 @@ BugOps Arena is an AI-powered debugging game where players fix buggy code under 
 ## Current Stack
 
 - Frontend: HTML, CSS, vanilla JavaScript
+- Editor: Monaco Editor served from the same origin, with a textarea fallback
 - Backend: Node.js, Express, TypeScript
 - Auth: Google and GitHub OAuth where provider credentials are configured
 - Sessions: secure HTTP-only cookies backed by PostgreSQL
 - Database: PostgreSQL with Prisma
 - Validation: Zod
-- Tests: Vitest
+- Tests: Vitest and Playwright
 - AI: server-side provider gateway with curated fallback hints
 
 ## Features
 
 - Timed debugging arena with lives, score, XP, streaks, and badges
+- Debugging workspace with Run Tests, visible/hidden tests, console/compiler output, expected-vs-actual results, reset, drafts, and diff view
+- Daily Bug, weekly quests, beginner/intermediate/advanced tracks, language-specific tracks, placement preparation, no-hint mode, and boss challenges
+- User profiles, non-sensitive challenge history, skill mastery dashboard, and adaptive recommendations
+- Weekly, monthly, and all-time database-backed leaderboards
 - 50 JavaScript, Python, C, and Java challenges
 - Signed-in progress synced through PostgreSQL
 - Server-backed leaderboard
 - Legacy local progress migration when a signed-in user has old `bugopsArenaProgress`
 - localStorage limited to editor drafts and UI preferences
+- Progressive five-level hints and post-completion root-cause explanations
+- Meaningful achievements unlocked from server-owned progress and session facts
+- Sanitized analytics events that never store submitted source, answers, secrets, tokens, cookies, sessions, names, or emails
 - AI hints through secure backend configuration
+- Server-side execution-provider interface; JavaScript challenge code runs in a child process, while Python/C/Java currently use a non-executing static verifier until an isolated compiler provider is added
 
 ## Local Setup
 
@@ -100,6 +109,7 @@ The coach prompt is Socratic: it asks diagnostic questions, suggests evidence to
 npm run lint
 npm run typecheck
 npm test
+npm run test:e2e
 npm run build
 npm audit --audit-level=moderate
 ```

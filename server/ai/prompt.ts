@@ -1,10 +1,10 @@
 import type { AiCoachContext } from "./types.js";
 
 export function buildSocraticPrompt(context: AiCoachContext): string {
-  const hintStage = Math.min(3, Math.max(1, context.hintCount || 1));
+  const hintStage = Math.min(5, Math.max(1, context.hintCount || 1));
   const mode =
     context.kind === "hint"
-      ? `Give a stage ${hintStage} progressive hint. Stage 1 should ask a diagnostic question; stage 2 may point to evidence; stage 3 may be more specific but still must not reveal the exact fix.`
+      ? `Give a stage ${hintStage} progressive hint. Stage 1 should ask a diagnostic question; stage 2 should point to evidence; stage 3 should narrow the concept; stage 4 may identify the bug pattern; stage 5 may be nearly explicit but still must not print the final corrected line.`
       : "Explain the debugging concept with diagnostic questions and evidence to inspect. Do not reveal the exact corrected line.";
 
   return [

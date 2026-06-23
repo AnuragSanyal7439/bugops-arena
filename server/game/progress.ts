@@ -46,6 +46,31 @@ export const achievementRules = [
     code: "hard-mode",
     label: "Hard Mode",
     test: (progress: ProgressShape) => (progress.difficultyStats.Hard?.correct || 0) >= 2
+  },
+  {
+    code: "bug-surgeon",
+    label: "Bug Surgeon",
+    test: (progress: ProgressShape) => progress.bugsFixed >= 25
+  },
+  {
+    code: "accuracy-80",
+    label: "Precision Debugger",
+    test: (progress: ProgressShape) => progress.totalAttempts >= 10 && progress.totalCorrect / progress.totalAttempts >= 0.8
+  },
+  {
+    code: "xp-1000",
+    label: "Kilobyte Climber",
+    test: (progress: ProgressShape) => progress.totalXP >= 1000
+  },
+  {
+    code: "language-specialist",
+    label: "Language Specialist",
+    test: (progress: ProgressShape) => Object.values(progress.languageStats).some((stats) => stats.correct >= 8)
+  },
+  {
+    code: "topic-master",
+    label: "Topic Master",
+    test: (progress: ProgressShape) => Object.values(progress.topicStats).some((stats) => stats.attempts >= 8 && stats.correct / stats.attempts >= 0.85)
   }
 ];
 
